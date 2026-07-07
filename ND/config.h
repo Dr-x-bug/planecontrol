@@ -2,8 +2,8 @@
 #include <SDL2/SDL.h>
 
 // === Window ===
-constexpr int WIN_W = 751;
-constexpr int WIN_H = 721;
+constexpr int ND_WIN_W = 751;
+constexpr int ND_WIN_H = 721;
 
 // === ND MAP Colors (from result image) ===
 namespace Color {
@@ -20,7 +20,7 @@ namespace Color {
 }
 
 // === ND Display Params ===
-constexpr int   ND_CX      = WIN_W / 2;
-constexpr int   ND_CY      = WIN_H / 2;
+constexpr int   ND_CX      = ND_WIN_W / 2;
+constexpr int   ND_CY      = ND_WIN_H / 2;
 constexpr int   ND_RADIUS  = 300;
 constexpr double NM_PER_PX = 0.0667;  // ~20nm range at 300px radius

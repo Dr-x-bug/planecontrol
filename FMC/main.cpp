@@ -10,7 +10,7 @@
 int main(int argc, char* argv[]) {
     (void)argc; (void)argv;
 
-    Renderer renderer;
+    FMCRenderer renderer;
     if (!renderer.init()) { printf("FMC init failed!\n"); return 1; }
 
     // 加载导航数据到AVL树 + FMS飞行计划到航道数组
@@ -92,5 +92,8 @@ int main(int argc, char* argv[]) {
     }
 
     printf("FMC stopped.\n");
+    IMG_Quit();
+    TTF_Quit();
+    SDL_Quit();
     return 0;
 }

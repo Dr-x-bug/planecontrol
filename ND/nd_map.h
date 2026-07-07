@@ -11,7 +11,7 @@
 #include "navaid_hash.h"
 
 // ===== 1. Compass Rose (罗盘玫瑰) =====
-inline void draw_compass_rose(Renderer& r, double hdg) {
+inline void draw_compass_rose(NDRenderer& r, double hdg) {
     int cx = ND_CX, cy = ND_CY, rad = ND_RADIUS;
 
     // Outer ring
@@ -53,7 +53,7 @@ inline void draw_compass_rose(Renderer& r, double hdg) {
 }
 
 // ===== 2. Route Line (航路绘制) =====
-inline void draw_route(Renderer& r, const std::vector<Waypoint>& wpts,
+inline void draw_route(NDRenderer& r, const std::vector<Waypoint>& wpts,
                        double ac_lat, double ac_lon, double ac_hdg) {
     if (wpts.empty()) return;
 
@@ -84,7 +84,7 @@ inline void draw_route(Renderer& r, const std::vector<Waypoint>& wpts,
 }
 
 // ===== 3. Waypoint Markers (航路点标识) =====
-inline void draw_waypoints(Renderer& r, const std::vector<Waypoint>& wpts,
+inline void draw_waypoints(NDRenderer& r, const std::vector<Waypoint>& wpts,
                            double ac_lat, double ac_lon, double ac_hdg) {
     for (const auto& wp : wpts) {
         int sx, sy;
@@ -109,7 +109,7 @@ inline void draw_waypoints(Renderer& r, const std::vector<Waypoint>& wpts,
 }
 
 // ===== 4. Aircraft Symbol (本机位置) =====
-inline void draw_aircraft(Renderer& r) {
+inline void draw_aircraft(NDRenderer& r) {
     int cx = ND_CX, cy = ND_CY;
     int sz = 14;
 
@@ -126,7 +126,7 @@ inline void draw_aircraft(Renderer& r) {
 }
 
 // ===== 5. Speed Display (速度及风速显示) =====
-inline void draw_speed_info(Renderer& r, double gs, double tas, double wind_dir, double wind_spd) {
+inline void draw_speed_info(NDRenderer& r, double gs, double tas, double wind_dir, double wind_spd) {
     // Top-left corner info box
     char buf[64];
 
@@ -139,7 +139,7 @@ inline void draw_speed_info(Renderer& r, double gs, double tas, double wind_dir,
     r.draw_text(10, 26, buf, Color::GREEN_LT, true);
 
     // Wind direction arrow + speed (top-right)
-    int wx = WIN_W - 130, wy = 25;
+    int wx = ND_WIN_W - 130, wy = 25;
     double w_rad = (wind_dir - 180.0) * M_PI / 180.0;  // direction TO
     int arr_len = 30;
     int ax1 = wx - (int)(arr_len/2 * cos(w_rad));
@@ -162,19 +162,19 @@ inline void draw_speed_info(Renderer& r, double gs, double tas, double wind_dir,
 
     // Wind speed text
     snprintf(buf, sizeof(buf), "%.0f°/%.0fkt", wind_dir, wind_spd);
-    r.draw_text(WIN_W - 180, 8, buf, Color::CYAN, true);
+    r.draw_text(ND_WIN_W - 180, 8, buf, Color::CYAN, true);
 
     // HDG display (bottom-left)
     snprintf(buf, sizeof(buf), "HDG %.0f", g_nd.heading);
-    r.draw_text(10, WIN_H - 25, buf, Color::WHITE, true);
+    r.draw_text(10, ND_WIN_H - 25, buf, Color::WHITE, true);
 
     // Range display (bottom-right)
     snprintf(buf, sizeof(buf), "RNG 20 NM");
-    r.draw_text(WIN_W - 80, WIN_H - 25, buf, Color::CYAN, true);
+    r.draw_text(ND_WIN_W - 80, ND_WIN_H - 25, buf, Color::CYAN, true);
 }
 
 // ===== Main ND MAP render =====
-inline void draw_nd_map(Renderer& r, const std::vector<Waypoint>& wpts,
+inline void draw_nd_map(NDRenderer& r, const std::vector<Waypoint>& wpts,
                          GridHashTable& ht) {
     // Layer 1: Compass rose (background layer)
     draw_compass_rose(r, g_nd.heading);

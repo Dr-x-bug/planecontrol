@@ -34,7 +34,7 @@ void sync_to_nd(const NDFlightData& src) {
 int main(int argc, char* argv[]) {
     (void)argc; (void)argv;
 
-    Renderer renderer;
+    NDRenderer renderer;
     if (!renderer.init()) {
         printf("Failed to init SDL2!\n");
         return 1;
@@ -126,12 +126,12 @@ int main(int argc, char* argv[]) {
         if (use_thread) {
             snprintf(buf, sizeof(buf), "THREAD #%ld",
                      g_shared.frame_count);
-            renderer.draw_text(WIN_W - 120, WIN_H - 42, buf,
+            renderer.draw_text(ND_WIN_W - 120, ND_WIN_H - 42, buf,
                 Color::GREEN_LT, true);
         } else {
             snprintf(buf, sizeof(buf), "FILE:%ld/%ld",
                      g_current_line, g_total_lines);
-            renderer.draw_text(WIN_W - 120, WIN_H - 42, buf,
+            renderer.draw_text(ND_WIN_W - 120, ND_WIN_H - 42, buf,
                 Color::GRAY, true);
         }
         renderer.present();
@@ -145,5 +145,8 @@ int main(int argc, char* argv[]) {
     nd_data_close();
     ht.destroy();
     printf("\nND stopped.\n");
+    // 显式清理 SDL (已从析构函数中移除)
+    TTF_Quit();
+    SDL_Quit();
     return 0;
 }

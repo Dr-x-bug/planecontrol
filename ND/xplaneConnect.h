@@ -32,7 +32,9 @@ extern "C" {
 #ifdef _WIN32 /* WIN32 SYSTEM */
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#pragma comment(lib,"ws2_32.lib") //Winsock Library
+#if defined(_MSC_VER)
+#pragma comment(lib,"ws2_32.lib") //Winsock Library (MSVC only)
+#endif
 #elif (__APPLE__ || __linux)
 #include <sys/socket.h>
 #include <netinet/in.h>

@@ -4,7 +4,7 @@
 #include <string>
 #include "config.h"
 
-struct Renderer {
+struct NDRenderer {
     SDL_Window*   window   = nullptr;
     SDL_Renderer* sdl_rend = nullptr;
     TTF_Font*     font     = nullptr;
@@ -15,7 +15,7 @@ struct Renderer {
         TTF_Init();
         window = SDL_CreateWindow("ND - MAP Mode",
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            WIN_W, WIN_H, SDL_WINDOW_SHOWN);
+            ND_WIN_W, ND_WIN_H, SDL_WINDOW_SHOWN);
         sdl_rend = SDL_CreateRenderer(window, -1,
             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         font    = TTF_OpenFont("assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 18);
@@ -45,12 +45,11 @@ struct Renderer {
         SDL_DestroyTexture(tex);
     }
 
-    ~Renderer() {
+    ~NDRenderer() {
         if (font_sm) TTF_CloseFont(font_sm);
         if (font)    TTF_CloseFont(font);
         if (sdl_rend) SDL_DestroyRenderer(sdl_rend);
         if (window)   SDL_DestroyWindow(window);
-        TTF_Quit();
-        SDL_Quit();
+        // TTF_Quit() / SDL_Quit() 由主程序统一调用
     }
 };

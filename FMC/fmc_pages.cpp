@@ -153,7 +153,7 @@ void page_draw_prog(FMCScreen* scr) {
     scr->set_line_L(4, "FUEL REM");     scr->set_line_R(4, "6800 KG");
 }
 
-void fmc_draw_screen(Renderer& r) {
+void fmc_draw_screen(FMCRenderer& r) {
     r.fill_rect(34, 30, 570, 390, {2, 2, 2, 255});
     r.draw_text(44, 38, g_pages[g_screen.current_page].title, Color::FMC_GREEN, false);
     int ly[6] = {108, 156, 204, 252, 300, 348};

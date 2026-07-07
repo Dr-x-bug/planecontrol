@@ -6,7 +6,7 @@
 #include <string>
 #include "config.h"
 
-struct Renderer {
+struct FMCRenderer {
     SDL_Window*   window   = nullptr;
     SDL_Renderer* sdl_rend = nullptr;
     TTF_Font*     font     = nullptr;
@@ -95,12 +95,12 @@ struct Renderer {
         }
     }
 
-    ~Renderer() {
+    ~FMCRenderer() {
         if (fmc_tex) SDL_DestroyTexture(fmc_tex);
         if (font_sm) TTF_CloseFont(font_sm);
         if (font) TTF_CloseFont(font);
         if (sdl_rend) SDL_DestroyRenderer(sdl_rend);
         if (window) SDL_DestroyWindow(window);
-        IMG_Quit(); TTF_Quit(); SDL_Quit();
+        // IMG_Quit() / TTF_Quit() / SDL_Quit() 由主程序统一调用
     }
 };

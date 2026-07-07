@@ -161,4 +161,4 @@ void page_draw_prog(FMCScreen* scr);
 void fmc_switch_page(FMCPage page);
 
 // ===== 统一渲染入口 =====
-void fmc_draw_screen(Renderer& r);
+void fmc_draw_screen(FMCRenderer& r);
