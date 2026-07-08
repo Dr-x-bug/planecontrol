@@ -40,7 +40,8 @@ $(TARGET): $(ALL_OBJ)
 $(BUILD)/cockpit_main.o: cockpit_main.cpp \
 		ND/config.h ND/renderer.h ND/navdata.h ND/nd_data.h \
 		ND/nd_xpc.h ND/nd_map.h ND/navaid_hash.h ND/nd_thread.h \
-		FMC/config.h FMC/renderer.h FMC/fmc_ui.h FMC/fmc_pages.h FMC/fmc_route.h
+		FMC/config.h FMC/renderer.h FMC/fmc_ui.h FMC/fmc_pages.h FMC/fmc_route.h \
+		shared_mem.h fmc_shm_sync.h
 	@mkdir -p $(BUILD)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 

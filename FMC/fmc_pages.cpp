@@ -41,20 +41,49 @@ void page_draw_init_ref(FMCScreen* scr) {
 void page_draw_rte(FMCScreen* scr) {
     scr->clear_lines();
     int start = g_route.page_start(), end = g_route.page_end(), total = g_route.total_pages();
+
+    // 第1行: ORIGIN (左) 和 DEST (右)
+    scr->set_line_L(0, "ORIGIN");
+    scr->set_line_R(0, scr->dest[0] ? scr->dest : "KBFI");
+
+    // 第2-6行: 航路点列表 (每页5个)
     for (int i = 0; i < PAGE_SIZE; i++) {
         const RouteWpt* w = g_route.get_page_wpt(i);
         if (w) {
-            scr->set_line_L(i, w->id);
-            char info[24]; snprintf(info, 24, "%.3f/%.3f", w->lat, w->lon);
+            // 显示航路点ID和类型
+            char label[24];
+            char wpt_type = w->type;
+            if (wpt_type == 'V')      snprintf(label, 24, "%s VOR", w->id);
+            else if (wpt_type == 'N') snprintf(label, 24, "%s NDB", w->id);
+            else if (wpt_type == 'A') snprintf(label, 24, "%s APT", w->id);
+            else                      snprintf(label, 24, "%s", w->id);
+            scr->set_line_L(i, label);
+
+            // 右侧显示距离/航向 (简化: 显示经纬度简要)
+            char info[24];
+            snprintf(info, 24, "%.4f/%.4f", w->lat, w->lon);
             scr->set_line_R(i, info);
+        } else if (i == 4 && total > 1) {
+            // 最后一行为翻页导航
+            scr->set_line_L(4, "<PREV PAGE");
+            char pg[24];
+            snprintf(pg, 24, "NEXT PAGE>");
+            scr->set_line_R(4, pg);
         }
     }
-    if (total > 1) {
-        scr->set_line_L(5, "<PREV PAGE");
-        char pg[24]; snprintf(pg, 24, "%d/%d>", g_route.current_page+1, total);
+
+    // 如果没有航路点, 显示ACTIVATE提示
+    if (g_route.count == 0) {
+        scr->set_line_L(2, "<ACTIVATE>");
+        scr->set_line_R(2, "LOAD RTE>");
+    }
+
+    // 第6行翻页 (当总页数>1且第5行已用于航路点时)
+    if (total > 1 && end - start >= 5) {
+        char pg[24];
+        snprintf(pg, 24, "%d/%d", g_route.current_page + 1, total);
         scr->set_line_R(5, pg);
     }
-    scr->set_line_L(4, "<ACTIVATE>");
 }
 
 void page_draw_clb(FMCScreen* scr) {
@@ -154,16 +183,44 @@ void page_draw_prog(FMCScreen* scr) {
 }
 
 void fmc_draw_screen(FMCRenderer& r) {
-    r.fill_rect(34, 30, 570, 390, {2, 2, 2, 255});
-    r.draw_text(44, 38, g_pages[g_screen.current_page].title, Color::FMC_GREEN, false);
-    int ly[6] = {108, 156, 204, 252, 300, 348};
+    // 屏幕深色背景 (匹配FMC CDU显示区域)
+    r.fill_rect(30, 58, 578, 358, {2, 2, 2, 255});
+
+    // 页面标题 (顶部居中)
+    r.draw_text_center(320, 64, g_pages[g_screen.current_page].title, Color::FMC_GREEN, false);
+
+    // 6行文字, 与左右LSK按钮垂直对齐
+    // LSK按钮Y: 118, 166, 214, 262, 310, 358 (按钮高度44, 中心=Y+22)
+    // 文字基线 = 按钮Y + 28
+    int ly[6] = {146, 194, 242, 290, 338, 386};
     for (int i = 0; i < 6; i++) {
+        // 左侧文字 (label)
         if (g_screen.line_L[i][0])
-            r.draw_text(48, ly[i], g_screen.line_L[i], Color::FMC_GREEN, false);
+            r.draw_text(44, ly[i], g_screen.line_L[i], Color::FMC_GREEN, false);
+        // 右侧文字 (data)
         if (g_screen.line_R[i][0])
-            r.draw_text(310, ly[i], g_screen.line_R[i], Color::FMC_GREEN, false);
+            r.draw_text(370, ly[i], g_screen.line_R[i], Color::FMC_WHITE, false);
     }
-    r.draw_text(48, 405, g_screen.scratchpad, Color::FMC_CYAN, false);
-    if (g_screen.exec_light)
-        r.draw_text(480, 418, "EXEC", Color::FMC_AMBER, false);
+
+    // 行分隔线 (增强可读性)
+    for (int i = 1; i < 6; i++) {
+        r.draw_line_h(38, ly[i] - 22, 562, {255, 255, 255, 30});
+    }
+
+    // 草稿栏 (scratchpad)
+    r.fill_rect(30, 410, 578, 30, {1, 1, 1, 255});
+    r.draw_text(44, 430, g_screen.scratchpad, Color::FMC_CYAN, false);
+
+    // EXEC 指示灯
+    if (g_screen.exec_light) {
+        r.fill_rect(520, 410, 88, 30, {0, 60, 0, 255});
+        r.draw_text(532, 430, "EXEC", Color::FMC_AMBER, false);
+    }
+
+    // 页面页码指示 (右下角)
+    if (g_route.total_pages() > 0) {
+        char pg[24];
+        snprintf(pg, 24, "%d/%d", g_route.current_page + 1, g_route.total_pages());
+        r.draw_text(520, 56, pg, Color::FMC_GREEN, true);
+    }
 }

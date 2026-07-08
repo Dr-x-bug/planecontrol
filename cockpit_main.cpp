@@ -38,6 +38,58 @@
 #include "FMC/fmc_route.h"
 
 // ============================================================
+// 共享内存 IPC (FMC ↔ ND 数据联动)
+// ============================================================
+#include "shared_mem.h"
+#include "fmc_shm_sync.h"
+
+// 全局同步回调实例 (定义在fmc_shm_sync.h中声明)
+RouteSyncCallback g_route_sync_cb = nullptr;
+
+static SharedMemoryIPC g_shm_cockpit;
+static LONG            g_shm_last_version = 0;
+
+// 将FMC航路数据同步到共享内存
+static void cockpit_sync_route_to_shm() {
+    if (!g_shm_cockpit.pData) return;
+
+    SharedRoutePoint shm_wpts[SHM_MAX_WPTS];
+    int count = g_route.count;
+    if (count > SHM_MAX_WPTS) count = SHM_MAX_WPTS;
+
+    for (int i = 0; i < count; i++) {
+        strncpy(shm_wpts[i].id, g_route.wpts[i].id, SHM_NAME_MAX - 1);
+        shm_wpts[i].id[SHM_NAME_MAX - 1] = '\0';
+        shm_wpts[i].lat  = g_route.wpts[i].lat;
+        shm_wpts[i].lon  = g_route.wpts[i].lon;
+        shm_wpts[i].freq = g_route.wpts[i].freq;
+        shm_wpts[i].type = g_route.wpts[i].type;
+    }
+
+    g_shm_cockpit.write_route(shm_wpts, count,
+        g_screen.origin, g_screen.dest, g_screen.flt_no);
+}
+
+// 从共享内存读取航路 (供ND使用, 同时支持外部ND进程连接)
+static void cockpit_read_route_from_shm(std::vector<Waypoint>& out_wpts) {
+    SharedRouteData route_data;
+    if (g_shm_cockpit.pData && g_shm_cockpit.has_new_data(g_shm_last_version)) {
+        if (g_shm_cockpit.read_route(route_data) && route_data.wpt_count > 0) {
+            out_wpts.clear();
+            for (int i = 0; i < route_data.wpt_count; i++) {
+                Waypoint wp;
+                wp.id  = route_data.wpts[i].id;
+                wp.lat = route_data.wpts[i].lat;
+                wp.lon = route_data.wpts[i].lon;
+                out_wpts.push_back(wp);
+            }
+            printf("[Cockpit] ND synced %d waypoints from FMC (shm ver=%ld)\n",
+                   route_data.wpt_count, route_data.version);
+        }
+    }
+}
+
+// ============================================================
 // ND 模块全局变量定义
 // (原本在 ND/main.cpp 中定义, 集成程序中在此统一定义)
 // ============================================================
@@ -148,6 +200,15 @@ static bool fmc_module_init(FMCRenderer& fmc_renderer) {
     fmc_switch_page(PAGE_INIT_REF);
     printf("[Cockpit] FMC initialized, page: %s\n",
            g_pages[g_screen.current_page].title);
+
+    // 初始化共享内存 (FMC作为创建方)
+    printf("[Cockpit] Initializing shared memory IPC...\n");
+    if (g_shm_cockpit.create()) {
+        cockpit_sync_route_to_shm();
+    }
+
+    // 注册航路同步回调 (供fmc_buttons调用)
+    g_route_sync_cb = cockpit_sync_route_to_shm;
 
     return true;
 }
@@ -352,6 +413,7 @@ static void cockpit_cleanup(GridHashTable& ht) {
         nd_thread_stop(g_hXpcThread);
     }
     nd_data_close();
+    g_shm_cockpit.close();
     ht.destroy();
     // NDRenderer 和 FMCRenderer 的析构函数会自动清理 SDL 资源
     printf("\n[Cockpit] Shutdown complete.\n");
@@ -414,6 +476,19 @@ int main(int argc, char* argv[]) {
 
         // 同步 X-Plane 数据到 FMC
         fmc_update_xplane_info();
+
+        // 定期检查共享内存: FMC→ND航路同步 (每500ms)
+        static Uint32 last_shm_sync = 0;
+        Uint32 now_shm = SDL_GetTicks();
+        if (now_shm - last_shm_sync >= 500) {
+            last_shm_sync = now_shm;
+            cockpit_read_route_from_shm(wpts);
+            // 同步飞机位置到共享内存
+            if (g_use_xpc_thread && g_nd_data.pos_valid) {
+                g_shm_cockpit.update_aircraft_position(
+                    g_nd_data.lat, g_nd_data.lon, g_nd_data.heading);
+            }
+        }
 
         // === 渲染 ===
         nd_render(nd_renderer, wpts, ht);

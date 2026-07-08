@@ -2,6 +2,7 @@
 #include "fmc_pages.h"
 #include "fmc_route.h"
 #include "fmc_deparr.h"
+#include "../fmc_shm_sync.h"
 #include <cstring>
 
 FMCButton fmc_buttons[FMC_KEY_COUNT];
@@ -191,6 +192,11 @@ void fmc_on_exec(FMCButton* btn) {
         // 重新绘制当前页面
         g_pages[pg].draw(&g_screen);
         snprintf(g_screen.scratchpad, 32, "EXECUTED");
+
+        // 航路数据变更后同步到共享内存 (供ND读取)
+        if (pg == PAGE_RTE || pg == PAGE_DEP_ARR || pg == PAGE_LEGS) {
+            fmc_route_sync_call();
+        }
     }
     snprintf(fmc_scratchpad, 32, "%s", g_screen.scratchpad);
 }

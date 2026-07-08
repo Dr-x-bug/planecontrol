@@ -8,6 +8,7 @@
 #include "nd_map.h"
 #include "navaid_hash.h"
 #include "nd_thread.h"
+#include "../shared_mem.h"
 
 // ===== 全局变量定义 =====
 NDData g_nd;
@@ -20,6 +21,10 @@ XPCSocket       g_xpc_sock;
 bool            g_xpc_ready = false;
 SharedNDBuffer  g_shared;      // 多线程共享缓冲区
 
+// 共享内存IPC (从FMC读取航路数据)
+SharedMemoryIPC g_shm_nd;
+static LONG     g_shm_last_version = 0;
+
 // 数据同步到渲染层
 void sync_to_nd(const NDFlightData& src) {
     g_nd.ac_lat   = src.lat;
@@ -29,6 +34,25 @@ void sync_to_nd(const NDFlightData& src) {
     g_nd.tas      = src.tas;
     g_nd.wind_dir = src.wind_dir;
     g_nd.wind_spd = src.wind_spd;
+}
+
+// 从共享内存读取航路数据并转换为Waypoint列表
+static void nd_read_route_from_shm(std::vector<Waypoint>& out_wpts) {
+    SharedRouteData route_data;
+    if (g_shm_nd.pData && g_shm_nd.has_new_data(g_shm_last_version)) {
+        if (g_shm_nd.read_route(route_data) && route_data.wpt_count > 0) {
+            out_wpts.clear();
+            for (int i = 0; i < route_data.wpt_count; i++) {
+                Waypoint wp;
+                wp.id  = route_data.wpts[i].id;
+                wp.lat = route_data.wpts[i].lat;
+                wp.lon = route_data.wpts[i].lon;
+                out_wpts.push_back(wp);
+            }
+            printf("[ND] Loaded %d waypoints from FMC via shared memory (ver=%ld)\n",
+                   route_data.wpt_count, route_data.version);
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -42,6 +66,16 @@ int main(int argc, char* argv[]) {
 
     auto wpts = load_fms("assets/KSEAKBFI.fms");
     printf("ND MAP Mode - Loaded %zu waypoints\n", wpts.size());
+
+    // 初始化共享内存 (从FMC读取航路数据)
+    printf("[ND] Opening shared memory IPC...\n");
+    if (g_shm_nd.open()) {
+        g_shm_last_version = 0;
+        // 尝试立即读取航路数据
+        nd_read_route_from_shm(wpts);
+    } else {
+        printf("[ND] Shared memory not available, using .fms file data\n");
+    }
 
     // === 数据源选择: 优先多线程XPC, 回退文件 ===
     HANDLE hThread = NULL;
@@ -117,6 +151,16 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // 定期检查共享内存中的航路更新 (每500ms)
+        static Uint32 last_shm_check = 0;
+        if (g_shm_nd.pData) {
+            Uint32 now_shm = SDL_GetTicks();
+            if (now_shm - last_shm_check >= 500) {
+                last_shm_check = now_shm;
+                nd_read_route_from_shm(wpts);
+            }
+        }
+
         // === 渲染 ===
         renderer.clear();
         draw_nd_map(renderer, wpts, ht);
@@ -143,6 +187,7 @@ int main(int argc, char* argv[]) {
         nd_thread_stop(hThread);
     }
     nd_data_close();
+    g_shm_nd.close();
     ht.destroy();
     printf("\nND stopped.\n");
     // 显式清理 SDL (已从析构函数中移除)
