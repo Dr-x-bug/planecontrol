@@ -30,65 +30,54 @@ void fmc_switch_page(FMCPage page) {
 
 void page_draw_init_ref(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "<IDENT");      scr->set_line_R(0, "KSEA>");
-    scr->set_line_L(1, "<POS");
-    scr->set_line_L(2, "<PERF");
-    scr->set_line_L(3, "<THRUST LIM");
-    scr->set_line_L(4, "<TAKEOFF");
-    scr->set_line_L(5, "<APPROACH");
+    scr->set_line_L(0, "<IDENT");       scr->set_line_R(0, "");
+    scr->set_line_L(1, "<POS");         scr->set_line_R(1, "");
+    scr->set_line_L(2, "<PERF");        scr->set_line_R(2, "");
+    scr->set_line_L(3, "<THRUST LIM");  scr->set_line_R(3, "");
+    scr->set_line_L(4, "<TAKEOFF");     scr->set_line_R(4, "");
+    scr->set_line_L(5, "<APPROACH");    scr->set_line_R(5, "");
 }
 
 void page_draw_rte(FMCScreen* scr) {
     scr->clear_lines();
     int start = g_route.page_start(), end = g_route.page_end(), total = g_route.total_pages();
 
-    // 第1行: ORIGIN (左) 和 DEST (右)
+    // 第1行: ORIGIN | DEST
     scr->set_line_L(0, "ORIGIN");
     scr->set_line_R(0, scr->dest[0] ? scr->dest : "KBFI");
 
-    // 第2-6行: 航路点列表 (每页5个)
-    for (int i = 0; i < PAGE_SIZE; i++) {
+    // 第2-5行: 航路点 (每页最多显示5个, 但第1行是ORIGIN, 所以从第2行开始)
+    int display_row = 1;
+    for (int i = 0; i < PAGE_SIZE && display_row < 5; i++) {
         const RouteWpt* w = g_route.get_page_wpt(i);
         if (w) {
-            // 显示航路点ID和类型
-            char label[24];
-            char wpt_type = w->type;
-            if (wpt_type == 'V')      snprintf(label, 24, "%s VOR", w->id);
-            else if (wpt_type == 'N') snprintf(label, 24, "%s NDB", w->id);
-            else if (wpt_type == 'A') snprintf(label, 24, "%s APT", w->id);
-            else                      snprintf(label, 24, "%s", w->id);
-            scr->set_line_L(i, label);
-
-            // 右侧显示距离/航向 (简化: 显示经纬度简要)
+            scr->set_line_L(display_row, w->id);
             char info[24];
             snprintf(info, 24, "%.4f/%.4f", w->lat, w->lon);
-            scr->set_line_R(i, info);
-        } else if (i == 4 && total > 1) {
-            // 最后一行为翻页导航
-            scr->set_line_L(4, "<PREV PAGE");
-            char pg[24];
-            snprintf(pg, 24, "NEXT PAGE>");
-            scr->set_line_R(4, pg);
+            scr->set_line_R(display_row, info);
+            display_row++;
         }
     }
 
-    // 如果没有航路点, 显示ACTIVATE提示
+    // 如果没有航路点
     if (g_route.count == 0) {
-        scr->set_line_L(2, "<ACTIVATE>");
-        scr->set_line_R(2, "LOAD RTE>");
+        scr->set_line_L(2, "-----");
+        scr->set_line_R(2, "-----");
     }
 
-    // 第6行翻页 (当总页数>1且第5行已用于航路点时)
-    if (total > 1 && end - start >= 5) {
-        char pg[24];
-        snprintf(pg, 24, "%d/%d", g_route.current_page + 1, total);
+    // 底部: 翻页 & ACTIVATE
+    if (total > 1) {
+        scr->set_line_L(5, "<PREV PAGE");
+        char pg[24]; snprintf(pg, 24, "%d/%d>", g_route.current_page + 1, total);
         scr->set_line_R(5, pg);
     }
+    scr->set_line_L(4, "<ACTIVATE>");
+    scr->set_line_R(4, "EXEC>");
 }
 
 void page_draw_clb(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "CLB SPD");      scr->set_line_R(0, scr->clb_spd);
+    scr->set_line_L(0, "CLB");          scr->set_line_R(0, "ECON");
     scr->set_line_L(1, "SPD RESTR");    scr->set_line_R(1, scr->clb_spd_rest);
     scr->set_line_L(2, "ALT RESTR");    scr->set_line_R(2, scr->clb_alt_rest[0]?scr->clb_alt_rest:"-----");
     scr->set_line_L(3, "CLB RATE");     scr->set_line_R(3, scr->clb_rate[0]?scr->clb_rate:"ECON");
@@ -118,13 +107,15 @@ void page_draw_des(FMCScreen* scr) {
 
 void page_draw_dep_arr(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "<DEP");          scr->set_line_R(0, "KSEA>");
+    scr->set_line_L(0, "<DEP");          scr->set_line_R(0, "ARR>");
     if (g_deparr.dep_step == 0) {
-        scr->set_line_L(1, "RWY");       scr->set_line_R(1, g_deparr.dep_rwy[0]?g_deparr.dep_rwy:"----");
-        scr->set_line_L(2, " 16L");      scr->set_line_R(2, "34L");
-        scr->set_line_L(3, " 16C");      scr->set_line_R(3, "34C");
-        scr->set_line_L(4, " 16R");      scr->set_line_R(4, "34R");
+        scr->set_line_L(1, "ORIGIN");    scr->set_line_R(1, "KSEA");
+        scr->set_line_L(2, "RWY");
+        scr->set_line_L(3, " 16L");      scr->set_line_R(3, "34L");
+        scr->set_line_L(4, " 16C");      scr->set_line_R(4, "34C");
+        scr->set_line_L(5, " 16R");      scr->set_line_R(5, "34R");
     } else if (g_deparr.dep_step == 1) {
+        scr->set_line_L(0, "<DEP");      scr->set_line_R(0, "KSEA>");
         scr->set_line_L(1, "RWY");       scr->set_line_R(1, g_deparr.dep_rwy);
         scr->set_line_L(2, "SID");       scr->set_line_R(2, g_deparr.dep_sid[0]?g_deparr.dep_sid:"----");
         int cnt=0;
@@ -152,75 +143,85 @@ void page_draw_dep_arr(FMCScreen* scr) {
             }
         }
     }
-    scr->set_line_R(0, "KBFI>");
 }
 
 void page_draw_legs(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, scr->origin[0]?scr->origin:"KSEA"); scr->set_line_R(0, "252/FL350");
-    scr->set_line_L(1, "BLI");       scr->set_line_R(1, "081/FL350");
-    scr->set_line_L(2, "FREDY");     scr->set_line_R(2, "360/FL350");
-    scr->set_line_L(3, "RENTO");     scr->set_line_R(3, "302/FL350");
-    scr->set_line_L(4, "TOTEM");     scr->set_line_R(4, "255/FL320");
-    scr->set_line_L(5, scr->dest[0]?scr->dest:"KBFI"); scr->set_line_R(5, "205/FL280");
+    // 使用航路数据填充LEGS页面
+    if (g_route.count > 0) {
+        for (int i = 0; i < 6 && i < g_route.count; i++) {
+            scr->set_line_L(i, g_route.wpts[i].id);
+            char info[24];
+            snprintf(info, 24, "%03d/FL350", (47 + i * 30) % 360);
+            scr->set_line_R(i, info);
+        }
+    } else {
+        scr->set_line_L(0, scr->origin[0]?scr->origin:"KSEA");
+        scr->set_line_R(0, "252/FL350");
+        scr->set_line_L(1, "BLI");       scr->set_line_R(1, "081/FL350");
+        scr->set_line_L(2, "FREDY");     scr->set_line_R(2, "360/FL350");
+        scr->set_line_L(3, "RENTO");     scr->set_line_R(3, "302/FL350");
+        scr->set_line_L(4, "TOTEM");     scr->set_line_R(4, "255/FL320");
+        scr->set_line_L(5, scr->dest[0]?scr->dest:"KBFI"); scr->set_line_R(5, "205/FL280");
+    }
 }
 
 void page_draw_hold(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "HOLD AT");
-    scr->set_line_L(1, "INBOUND");    scr->set_line_R(1, "270/LEFT");
-    scr->set_line_L(2, "TURN DIR");   scr->set_line_R(2, "RIGHT");
-    scr->set_line_L(3, "LEG TIME");   scr->set_line_R(3, "1.0 MIN");
+    scr->set_line_L(0, "HOLD AT");       scr->set_line_R(0, "-----");
+    scr->set_line_L(1, "INBOUND");       scr->set_line_R(1, "270/LEFT");
+    scr->set_line_L(2, "TURN DIR");      scr->set_line_R(2, "RIGHT");
+    scr->set_line_L(3, "LEG TIME");      scr->set_line_R(3, "1.0 MIN");
+    scr->set_line_L(4, "LEG DIST");      scr->set_line_R(4, "-----");
+    scr->set_line_L(5, "FIX ETA");       scr->set_line_R(5, "-----");
 }
 
 void page_draw_prog(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "LAST POS");     scr->set_line_R(0, "KSEA");
-    scr->set_line_L(1, "NEXT");         scr->set_line_R(1, "BLI");
-    scr->set_line_L(2, "DIST TO DEST"); scr->set_line_R(2, "85.2 NM");
-    scr->set_line_L(3, "ETA");          scr->set_line_R(3, "1432Z");
-    scr->set_line_L(4, "FUEL REM");     scr->set_line_R(4, "6800 KG");
+    scr->set_line_L(0, "LAST POS");      scr->set_line_R(0, "KSEA");
+    scr->set_line_L(1, "NEXT");          scr->set_line_R(1, "BLI");
+    scr->set_line_L(2, "DIST TO DEST");  scr->set_line_R(2, "85.2 NM");
+    scr->set_line_L(3, "ETA");           scr->set_line_R(3, "1432Z");
+    scr->set_line_L(4, "FUEL REM");      scr->set_line_R(4, "6800 KG");
+    scr->set_line_L(5, "WIND");          scr->set_line_R(5, "270/15KT");
 }
 
+// ===== FMC 屏幕渲染 (匹配 Boeing CDU 风格) =====
 void fmc_draw_screen(FMCRenderer& r) {
-    // 屏幕深色背景 (匹配FMC CDU显示区域)
-    r.fill_rect(30, 58, 578, 358, {2, 2, 2, 255});
+    // 深色屏幕背景
+    r.fill_rect(34, 50, 570, 380, {2, 3, 2, 255});
 
-    // 页面标题 (顶部居中)
-    r.draw_text_center(320, 64, g_pages[g_screen.current_page].title, Color::FMC_GREEN, false);
+    // 页面标题 (顶部)
+    r.draw_text_center(320, 62, g_pages[g_screen.current_page].title, Color::FMC_GREEN, false);
 
-    // 6行文字, 与左右LSK按钮垂直对齐
-    // LSK按钮Y: 118, 166, 214, 262, 310, 358 (按钮高度44, 中心=Y+22)
-    // 文字基线 = 按钮Y + 28
+    // 标题下分隔线
+    r.draw_line_h(40, 78, 598, {0, 180, 0, 60});
+
+    // 6行文字, 与LSK按钮中心对齐
+    // LSK按钮Y: 118, 166, 214, 262, 310, 358  中心: 140, 188, 236, 284, 332, 380
     int ly[6] = {146, 194, 242, 290, 338, 386};
     for (int i = 0; i < 6; i++) {
-        // 左侧文字 (label)
+        // 左侧文字 (小号, 绿色标签)
         if (g_screen.line_L[i][0])
-            r.draw_text(44, ly[i], g_screen.line_L[i], Color::FMC_GREEN, false);
-        // 右侧文字 (data)
+            r.draw_text(44, ly[i], g_screen.line_L[i], Color::FMC_GREEN, true);
+        // 右侧文字 (正常大小, 白色数据)
         if (g_screen.line_R[i][0])
-            r.draw_text(370, ly[i], g_screen.line_R[i], Color::FMC_WHITE, false);
+            r.draw_text(360, ly[i], g_screen.line_R[i], Color::FMC_WHITE, false);
     }
 
-    // 行分隔线 (增强可读性)
-    for (int i = 1; i < 6; i++) {
-        r.draw_line_h(38, ly[i] - 22, 562, {255, 255, 255, 30});
-    }
+    // 草稿栏分隔线
+    r.draw_line_h(40, 406, 598, {0, 180, 0, 60});
 
     // 草稿栏 (scratchpad)
-    r.fill_rect(30, 410, 578, 30, {1, 1, 1, 255});
-    r.draw_text(44, 430, g_screen.scratchpad, Color::FMC_CYAN, false);
+    r.fill_rect(34, 408, 570, 32, {1, 1, 1, 255});
+    r.draw_text(48, 430, g_screen.scratchpad, Color::FMC_CYAN, false);
 
     // EXEC 指示灯
     if (g_screen.exec_light) {
-        r.fill_rect(520, 410, 88, 30, {0, 60, 0, 255});
-        r.draw_text(532, 430, "EXEC", Color::FMC_AMBER, false);
+        r.fill_rect(520, 408, 84, 32, {0, 50, 0, 255});
+        r.draw_text(536, 430, "EXEC", Color::FMC_AMBER, false);
     }
 
-    // 页面页码指示 (右下角)
-    if (g_route.total_pages() > 0) {
-        char pg[24];
-        snprintf(pg, 24, "%d/%d", g_route.current_page + 1, g_route.total_pages());
-        r.draw_text(520, 56, pg, Color::FMC_GREEN, true);
-    }
+    // 消息区 (MSG / DISCONTINUITY 等)
+    r.draw_text(44, 78, g_screen.scratchpad[0] ? "MSG" : "", Color::FMC_AMBER, true);
 }
