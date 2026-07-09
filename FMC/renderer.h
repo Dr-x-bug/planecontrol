@@ -69,6 +69,19 @@ struct FMCRenderer {
         SDL_FreeSurface(s); SDL_DestroyTexture(t);
     }
 
+    // 右对齐文字 (x为右边界)
+    void draw_text_right(int rx, int y, const std::string& txt, SDL_Color c, bool sm=false) {
+        if (txt.empty()) return;
+        TTF_Font* f = sm ? font_sm : font;
+        SDL_Surface* s = TTF_RenderUTF8_Blended(f, txt.c_str(), c);
+        if (!s) return;
+        SDL_Texture* t = SDL_CreateTextureFromSurface(sdl_rend, s);
+        int tw = (int)(s->w * scale);
+        SDL_Rect d = {to_sx(rx) - tw, to_sy(y), tw, (int)(s->h*scale)};
+        SDL_RenderCopy(sdl_rend, t, nullptr, &d);
+        SDL_FreeSurface(s); SDL_DestroyTexture(t);
+    }
+
     // 水平分隔线
     void draw_line_h(int x1, int y, int x2, SDL_Color c) {
         int xs = to_sx(x1), ys = to_sy(y), xe = to_sx(x2);
@@ -81,6 +94,13 @@ struct FMCRenderer {
         SDL_Rect r = {to_sx(x), to_sy(y), to_sw(w), to_sh(h)};
         SDL_SetRenderDrawColor(sdl_rend, c.r, c.g, c.b, c.a);
         SDL_RenderFillRect(sdl_rend, &r);
+    }
+
+    // 矩形边框
+    void draw_rect_border(int x, int y, int w, int h, SDL_Color c) {
+        SDL_Rect r = {to_sx(x), to_sy(y), to_sw(w), to_sh(h)};
+        SDL_SetRenderDrawColor(sdl_rend, c.r, c.g, c.b, c.a);
+        SDL_RenderDrawRect(sdl_rend, &r);
     }
 
     // 矩形按钮: 正常透明, 悬停亮框, 按下亮黄框

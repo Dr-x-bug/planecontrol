@@ -186,42 +186,36 @@ void page_draw_prog(FMCScreen* scr) {
     scr->set_line_L(5, "WIND");          scr->set_line_R(5, "270/15KT");
 }
 
-// ===== FMC 屏幕渲染 (匹配 Boeing CDU 风格) =====
+// ===== FMC 屏幕渲染 =====
 void fmc_draw_screen(FMCRenderer& r) {
-    // 深色屏幕背景
-    r.fill_rect(34, 50, 570, 380, {2, 3, 2, 255});
+    // LED屏幕深色背景 (居中于LSK按钮之间)
+    r.fill_rect(98, 75, 430, 355, {1, 2, 1, 255});
 
-    // 页面标题 (顶部)
-    r.draw_text_center(320, 62, g_pages[g_screen.current_page].title, Color::FMC_GREEN, false);
+    // 第1行: 页面标题(左) + 页码(右)
+    r.draw_text(106, 94, g_pages[g_screen.current_page].title, Color::FMC_GREEN, true);
+    if (g_route.total_pages() > 0) {
+        char pg[16]; snprintf(pg, 16, "%d/%d", g_route.current_page + 1, g_route.total_pages());
+        r.draw_text_right(528, 94, pg, Color::FMC_GREEN, true);
+    }
 
-    // 标题下分隔线
-    r.draw_line_h(40, 78, 598, {0, 180, 0, 60});
-
-    // 6行文字, 与LSK按钮中心对齐
-    // LSK按钮Y: 118, 166, 214, 262, 310, 358  中心: 140, 188, 236, 284, 332, 380
-    int ly[6] = {146, 194, 242, 290, 338, 386};
+    // 6行文字, 与LSK按钮对齐
+    int ly[6] = {128, 176, 224, 272, 320, 368};
     for (int i = 0; i < 6; i++) {
-        // 左侧文字 (小号, 绿色标签)
         if (g_screen.line_L[i][0])
-            r.draw_text(44, ly[i], g_screen.line_L[i], Color::FMC_GREEN, true);
-        // 右侧文字 (正常大小, 白色数据)
+            r.draw_text(106, ly[i], g_screen.line_L[i], Color::FMC_GREEN, true);
         if (g_screen.line_R[i][0])
-            r.draw_text(360, ly[i], g_screen.line_R[i], Color::FMC_WHITE, false);
+            r.draw_text_right(528, ly[i], g_screen.line_R[i], Color::FMC_WHITE, false);
     }
 
-    // 草稿栏分隔线
-    r.draw_line_h(40, 406, 598, {0, 180, 0, 60});
+    // ===== 草稿栏 (青色中括号, 各居屏幕两端) =====
+    int sy = 400;
+    r.draw_text(106, sy, "<", Color::FMC_CYAN, false);
+    r.draw_text_right(528, sy, ">", Color::FMC_CYAN, false);
+    if (g_screen.scratchpad[0])
+        r.draw_text(122, sy, g_screen.scratchpad, Color::FMC_CYAN, false);
 
-    // 草稿栏 (scratchpad)
-    r.fill_rect(34, 408, 570, 32, {1, 1, 1, 255});
-    r.draw_text(48, 430, g_screen.scratchpad, Color::FMC_CYAN, false);
-
-    // EXEC 指示灯
+    // EXEC 灯
     if (g_screen.exec_light) {
-        r.fill_rect(520, 408, 84, 32, {0, 50, 0, 255});
-        r.draw_text(536, 430, "EXEC", Color::FMC_AMBER, false);
+        r.draw_text(480, sy, "EXEC", Color::FMC_AMBER, false);
     }
-
-    // 消息区 (MSG / DISCONTINUITY 等)
-    r.draw_text(44, 78, g_screen.scratchpad[0] ? "MSG" : "", Color::FMC_AMBER, true);
 }
