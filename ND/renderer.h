@@ -45,6 +45,18 @@ struct NDRenderer {
         SDL_DestroyTexture(tex);
     }
 
+    void draw_text_center(int cx, int y, const std::string& txt, SDL_Color c, bool small = false) {
+        if (txt.empty()) return;
+        TTF_Font* f = small ? font_sm : font;
+        SDL_Surface* surf = TTF_RenderText_Blended(f, txt.c_str(), c);
+        if (!surf) return;
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(sdl_rend, surf);
+        SDL_Rect dst = {cx - surf->w/2, y, surf->w, surf->h};
+        SDL_RenderCopy(sdl_rend, tex, nullptr, &dst);
+        SDL_FreeSurface(surf);
+        SDL_DestroyTexture(tex);
+    }
+
     ~NDRenderer() {
         if (font_sm) TTF_CloseFont(font_sm);
         if (font)    TTF_CloseFont(font);

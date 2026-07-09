@@ -151,11 +151,11 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // 定期检查共享内存中的航路更新 (每500ms)
+        // 定期检查共享内存中的航路更新 (每100ms)
         static Uint32 last_shm_check = 0;
         if (g_shm_nd.pData) {
             Uint32 now_shm = SDL_GetTicks();
-            if (now_shm - last_shm_check >= 500) {
+            if (now_shm - last_shm_check >= 100) {
                 last_shm_check = now_shm;
                 nd_read_route_from_shm(wpts);
             }

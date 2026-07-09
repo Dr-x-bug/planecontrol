@@ -477,10 +477,10 @@ int main(int argc, char* argv[]) {
         // 同步 X-Plane 数据到 FMC
         fmc_update_xplane_info();
 
-        // 定期检查共享内存: FMC→ND航路同步 (每500ms)
+        // 定期检查共享内存: FMC→ND航路同步 (每100ms)
         static Uint32 last_shm_sync = 0;
         Uint32 now_shm = SDL_GetTicks();
-        if (now_shm - last_shm_sync >= 500) {
+        if (now_shm - last_shm_sync >= 100) {
             last_shm_sync = now_shm;
             cockpit_read_route_from_shm(wpts);
             // 同步飞机位置到共享内存
