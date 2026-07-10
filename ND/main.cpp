@@ -8,6 +8,7 @@
 #include "nd_map.h"
 #include "navaid_hash.h"
 #include "nd_thread.h"
+#include "nd_navdata.h"
 #include "../shared_mem.h"
 
 // ===== 全局变量定义 =====
@@ -106,7 +107,7 @@ int main(int argc, char* argv[]) {
         printf("nd.dat opened: %ld lines (single-thread file mode)\n", g_total_lines);
     }
 
-    // === 哈希表 ===
+    // === 哈希表 (原有) ===
     GridHashTable ht;
     ht.init();
     int nav_count = load_navaids(ht, "assets/earth_nav.dat");
@@ -114,6 +115,33 @@ int main(int argc, char* argv[]) {
     int apt_count = load_airports(ht, "assets/apt.dat");
     printf("[Hash] Total: %d points\n", ht.point_count);
     (void)nav_count; (void)fix_count; (void)apt_count;
+
+    // === 新导航数据层: 网格化哈希表 (任务5) ===
+    printf("[NDNav] Loading nav data with grid hash table...\n");
+    if (load_all_nav_data() == 0) {
+        printf("[NDNav] Grid hash table loaded: %d waypoints\n", waypoint_total_count);
+    } else {
+        printf("[NDNav] Grid hash table load failed, using legacy hash\n");
+    }
+
+    // === 测试代码: 从X-Plane获取位置并查询附近航点 (任务5) ===
+    {
+        NDNavData ndTest;
+        memset(&ndTest, 0, sizeof(ndTest));
+        // 尝试从X-Plane获取一次数据做测试
+        if (g_xpc_ready) {
+            if (getNDNavData(g_xpc_sock, &ndTest) == 0) {
+                int nearby = filter_waypoint_within_148km_ht(ndTest.latitude, ndTest.longitude, ndTest.heading);
+                printf("[NDNav] Test: lat=%.4f lon=%.4f hdg=%.0f → nearby=%d\n",
+                       ndTest.latitude, ndTest.longitude, ndTest.heading, nearby);
+            }
+        }
+        // 回退: 用默认位置 (KSEA) 测试
+        if (wp_result_total == 0) {
+            int nearby = filter_waypoint_within_148km_ht(47.45, -122.31, 0.0f);
+            printf("[NDNav] Test (KSEA): nearby waypoints = %d\n", nearby);
+        }
+    }
 
     // === 主循环 (渲染线程) ===
     bool running = true;
@@ -189,6 +217,7 @@ int main(int argc, char* argv[]) {
     nd_data_close();
     g_shm_nd.close();
     ht.destroy();
+    free_nav_data();    // 释放网格化哈希表 (任务5)
     printf("\nND stopped.\n");
     // 显式清理 SDL (已从析构函数中移除)
     TTF_Quit();

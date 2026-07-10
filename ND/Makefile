@@ -4,8 +4,8 @@ LDFLAGS  := -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf -lSDL2_image -lSDL2_gfx -lws2
 INCLUDES := -I. -I..
 
 TARGET   := ND.exe
-SOURCES  := main.cpp xplaneConnect.c
-OBJECTS  := build/main.o build/xplaneConnect.o
+SOURCES  := main.cpp xplaneConnect.c nd_navdata.c
+OBJECTS  := build/main.o build/xplaneConnect.o build/nd_navdata.o
 
 .PHONY: all clean run
 
@@ -21,6 +21,10 @@ build/main.o: main.cpp config.h nd_map.h navdata.h nd_data.h nd_xpc.h renderer.h
 build/xplaneConnect.o: xplaneConnect.c xplaneConnect.h
 	@mkdir -p build
 	gcc -std=c11 -w -c xplaneConnect.c -o $@
+
+build/nd_navdata.o: nd_navdata.c nd_navdata.h config.h renderer.h
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c nd_navdata.c -o $@
 
 clean:
 	rm -rf build $(TARGET)
