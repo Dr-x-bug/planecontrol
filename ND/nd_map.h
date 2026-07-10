@@ -41,8 +41,8 @@ inline double calc_dist_nm(double lat1, double lon1, double lat2, double lon2) {
 }
 
 constexpr int ARC_CX       = 375;
-constexpr int ARC_CY       = 300;
-constexpr int ARC_R        = 270;
+constexpr int ARC_CY       = 480;
+constexpr int ARC_R        = 390;
 constexpr int ARC_START    = 210;
 constexpr int ARC_END      = 330;
 constexpr int ACFT_Y       = 555;
@@ -114,7 +114,7 @@ inline void draw_arc_compass(NDRenderer& r, double hdg) {
         double ra = a * M_PI / 180.0;
         double cosa = cos(ra), sina = sin(ra);
         bool major = (a % 10 == 0);
-        int tickLen = major ? 16 : 8;
+        int tickLen = major ? 22 : 10;
         int alpha   = major ? 220 : 130;
 
         int x1 = cx + (int)((rad - 1) * cosa);
@@ -128,7 +128,7 @@ inline void draw_arc_compass(NDRenderer& r, double hdg) {
             char buf[4];
             snprintf(buf, sizeof(buf), "%d", lbl);
             int tx = cx + (int)((rad - 28) * cosa) - (lbl >= 10 ? 10 : 5);
-            int ty = cy + (int)((rad - 28) * sina) - 8;
+            int ty = cy + (int)((rad - 32) * sina) - 9;
             r.draw_text(tx, ty, buf, Color::WHITE, true);
         }
     }
@@ -136,8 +136,8 @@ inline void draw_arc_compass(NDRenderer& r, double hdg) {
     // heading pointer at arc peak (270°)
     int px = cx + (int)(rad * cos(270.0 * M_PI / 180.0));
     int py = cy + (int)(rad * sin(270.0 * M_PI / 180.0));
-    Sint16 tri_x[3] = {(Sint16)px, (Sint16)(px - 6), (Sint16)(px + 6)};
-    Sint16 tri_y[3] = {(Sint16)(py - 10), (Sint16)py, (Sint16)py};
+    Sint16 tri_x[3] = {(Sint16)px, (Sint16)(px - 9), (Sint16)(px + 9)};
+    Sint16 tri_y[3] = {(Sint16)(py - 14), (Sint16)py, (Sint16)py};
     filledPolygonRGBA(r.sdl_rend, tri_x, tri_y, 3, 255, 255, 255, 255);
 }
 
