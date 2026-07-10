@@ -38,55 +38,132 @@ void fmc_on_lsk(FMCButton* btn) {
         idx = btn->key - FMC_KEY_R1; left = false;
     }
 
-    // === DEP/ARR 页面特殊处理 ===
-    if (g_screen.current_page == PAGE_DEP_ARR && left && idx == 0) {
-        // L1: 重置/进入DEP选择
-        g_deparr.dep_step = 0;
-        g_deparr.dep_rwy[0] = '\0';
-        g_deparr.dep_sid[0] = '\0';
-        g_deparr.dep_trans[0] = '\0';
-        page_draw_dep_arr(&g_screen);
+    // === INIT/REF 页面: L1 切换 IDENT 子页面 ===
+    if (g_screen.current_page == PAGE_INIT_REF && left && idx == 0) {
+        g_init_subpage = g_init_subpage ? 0 : 1;
+        page_draw_init_ref(&g_screen);
     }
-    else if (g_screen.current_page == PAGE_DEP_ARR && g_deparr.dep_step == 0) {
-        // 跑道选择
-        const char* rwys_L[] = {"16L","16C","16R"};
-        const char* rwys_R[] = {"34L","34C","34R"};
-        if (left && idx >= 1 && idx <= 3) { strncpy(g_deparr.dep_rwy, rwys_L[idx-1], 7); g_deparr.dep_step = 1; }
-        if (!left && idx >= 1 && idx <= 3) { strncpy(g_deparr.dep_rwy, rwys_R[idx-1], 7); g_deparr.dep_step = 1; }
-        page_draw_dep_arr(&g_screen);
-    }
-    else if (g_screen.current_page == PAGE_DEP_ARR && g_deparr.dep_step == 1) {
-        // SID选择
-        if (left && idx >= 2 && idx <= 4) {
-            int cnt=0;
-            for (int i=0;i<ksea_sid_count;i++) {
-                bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
-                if (m) { if (cnt==idx-2) { strncpy(g_deparr.dep_sid,ksea_sids[i].name,15); g_deparr.dep_step=2; break; } cnt++; }
-            }
-        }
-        page_draw_dep_arr(&g_screen);
-    }
-    else if (g_screen.current_page == PAGE_DEP_ARR && g_deparr.dep_step == 2) {
-        // 过渡点选择
-        if (left && idx >= 3 && idx <= 4) {
-            for (int i=0;i<ksea_sid_count;i++) {
-                bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
-                if (m&&strcmp(ksea_sids[i].name,g_deparr.dep_sid)==0) {
-                    int ti=idx-3;
-                    if (ti<ksea_sids[i].trans_count) strncpy(g_deparr.dep_trans,ksea_sids[i].transitions[ti],15);
-                    break;
-                }
-            }
-        }
-        page_draw_dep_arr(&g_screen);
+    else if (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1 && left && idx == 4) {
+        g_init_subpage = 0;
+        page_draw_init_ref(&g_screen);
     }
 
-    // === RTE页面 ===
+    // === DEP/ARR 页面特殊处理 ===
+    else if (g_screen.current_page == PAGE_DEP_ARR) {
+        // R1: 切换 DEP/ARR 模式
+        if (!left && idx == 0) {
+            g_deparr_mode = (g_deparr_mode == 'D') ? 'A' : 'D';
+            g_deparr.dep_step = 0; g_deparr.arr_step = 0;
+            page_draw_dep_arr(&g_screen);
+        }
+        // L1: 重置当前DEP选择
+        else if (left && idx == 0 && g_deparr_mode == 'D') {
+            g_deparr.dep_step = 0; g_deparr.dep_rwy[0]='\0';
+            g_deparr.dep_sid[0]='\0'; g_deparr.dep_trans[0]='\0';
+            page_draw_dep_arr(&g_screen);
+        }
+        // L1: 重置当前ARR选择
+        else if (left && idx == 0 && g_deparr_mode == 'A') {
+            g_deparr.arr_step = 0; g_deparr.arr_rwy[0]='\0';
+            g_deparr.arr_star[0]='\0'; g_deparr.arr_appr[0]='\0';
+            page_draw_dep_arr(&g_screen);
+        }
+        // === DEP 流程 ===
+        else if (g_deparr_mode == 'D' && g_deparr.dep_step == 0) {
+            const char* rwys_L[] = {"16L","16C","16R"};
+            const char* rwys_R[] = {"34L","34C","34R"};
+            if (left  && idx>=1 && idx<=3) { strncpy(g_deparr.dep_rwy, rwys_L[idx-1],7); g_deparr.dep_step=1; }
+            if (!left && idx>=1 && idx<=3) { strncpy(g_deparr.dep_rwy, rwys_R[idx-1],7); g_deparr.dep_step=1; }
+            page_draw_dep_arr(&g_screen);
+        }
+        else if (g_deparr_mode == 'D' && g_deparr.dep_step == 1) {
+            if (left && idx>=2 && idx<=4) {
+                int cnt=0;
+                for (int i=0;i<ksea_sid_count;i++) {
+                    bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
+                    if (m) { if(cnt==idx-2){strncpy(g_deparr.dep_sid,ksea_sids[i].name,15);g_deparr.dep_step=2;break;} cnt++; }
+                }
+            }
+            page_draw_dep_arr(&g_screen);
+        }
+        else if (g_deparr_mode == 'D' && g_deparr.dep_step == 2) {
+            if (left && idx>=3 && idx<=4) {
+                for (int i=0;i<ksea_sid_count;i++) {
+                    bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
+                    if (m&&strcmp(ksea_sids[i].name,g_deparr.dep_sid)==0) {
+                        int ti=idx-3;
+                        if(ti<ksea_sids[i].trans_count)strncpy(g_deparr.dep_trans,ksea_sids[i].transitions[ti],15);
+                        break;
+                    }
+                }
+            }
+            page_draw_dep_arr(&g_screen);
+        }
+        // === ARR 流程 ===
+        else if (g_deparr_mode == 'A' && g_deparr.arr_step == 0) {
+            const char* rwys_L[] = {"13L","13R"};
+            const char* rwys_R[] = {"31L","31R"};
+            if (left  && idx>=1 && idx<=2) { strncpy(g_deparr.arr_rwy, rwys_L[idx-1],7); g_deparr.arr_step=1; }
+            if (!left && idx>=1 && idx<=2) { strncpy(g_deparr.arr_rwy, rwys_R[idx-1],7); g_deparr.arr_step=1; }
+            page_draw_dep_arr(&g_screen);
+        }
+        else if (g_deparr_mode == 'A' && g_deparr.arr_step == 1) {
+            if (left && idx>=2 && idx<=4) {
+                int cnt=0;
+                for (int i=0;i<kbfi_star_count;i++) {
+                    if (kbfi_stars[i].type=='T') {
+                        bool m=(kbfi_stars[i].runway[0]==0||strcmp(kbfi_stars[i].runway,g_deparr.arr_rwy)==0);
+                        if (m) { if(cnt==idx-2){strncpy(g_deparr.arr_star,kbfi_stars[i].name,15);g_deparr.arr_step=2;break;} cnt++; }
+                    }
+                }
+            }
+            page_draw_dep_arr(&g_screen);
+        }
+        else if (g_deparr_mode == 'A' && g_deparr.arr_step == 2) {
+            if (left && idx>=3 && idx<=4) {
+                int cnt=0;
+                for (int i=0;i<kbfi_star_count;i++) {
+                    if (kbfi_stars[i].type=='A') {
+                        bool m=(kbfi_stars[i].runway[0]==0||strcmp(kbfi_stars[i].runway,g_deparr.arr_rwy)==0);
+                        if (m&&cnt==idx-3){strncpy(g_deparr.arr_appr,kbfi_stars[i].name,15);break;} cnt++;
+                    }
+                }
+            }
+            page_draw_dep_arr(&g_screen);
+        }
+    }
+
+    // === RTE页面: 机场/航班号输入 ===
     else if (g_screen.current_page == PAGE_RTE) {
         if (idx == 5 && left)  { g_route.prev_page(); page_draw_rte(&g_screen); }
         if (idx == 5 && !left) { g_route.next_page(); page_draw_rte(&g_screen); }
-        if (idx == 4 && left)  { g_screen.clear_scratchpad(); }
-        if (idx < 4) g_screen.lsk_press(idx, left);
+        // L1: ORIGIN, R1: DEST, L2: FLT_NO
+        if (idx == 0 && left && g_screen.scratchpad[0]) {
+            // 校验机场是否在AVL树中
+            AVLNode* found = g_waypoint_tree.search(g_screen.scratchpad);
+            if (found && found->wpt.type == 'A') {
+                strncpy(g_screen.origin, g_screen.scratchpad, 7);
+                g_screen.clear_scratchpad();
+            } else {
+                snprintf(g_screen.scratchpad, 32, "NOT IN DB");
+            }
+        }
+        if (idx == 0 && !left && g_screen.scratchpad[0]) {
+            AVLNode* found = g_waypoint_tree.search(g_screen.scratchpad);
+            if (found && found->wpt.type == 'A') {
+                strncpy(g_screen.dest, g_screen.scratchpad, 7);
+                g_screen.clear_scratchpad();
+            } else {
+                snprintf(g_screen.scratchpad, 32, "NOT IN DB");
+            }
+        }
+        if (idx == 1 && left && g_screen.scratchpad[0]) {
+            strncpy(g_screen.flt_no, g_screen.scratchpad, 15);
+            g_screen.clear_scratchpad();
+        }
+        // 其他LSK: 通用处理
+        if (idx < 4 && !(idx == 0 || idx == 1)) g_screen.lsk_press(idx, left);
+        page_draw_rte(&g_screen);
     } else {
         g_screen.lsk_press(idx, left);
     }
@@ -100,6 +177,29 @@ void fmc_on_lsk(FMCButton* btn) {
 }
 
 void fmc_on_func_key(FMCButton* btn) {
+    // PREV PAGE / NEXT PAGE: 在航路相关页面翻页
+    if (btn->key == FMC_KEY_PREV_PAGE &&
+        (g_screen.current_page == PAGE_RTE || g_screen.current_page == PAGE_LEGS)) {
+        g_route.prev_page();
+        if (g_screen.current_page == PAGE_RTE) page_draw_rte(&g_screen);
+        else page_draw_legs(&g_screen);
+        snprintf(fmc_title, 32, "%s", g_pages[g_screen.current_page].title);
+        snprintf(fmc_scratchpad, 32, "%s", g_screen.scratchpad);
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+    if (btn->key == FMC_KEY_NEXT_PAGE &&
+        (g_screen.current_page == PAGE_RTE || g_screen.current_page == PAGE_LEGS)) {
+        g_route.next_page();
+        if (g_screen.current_page == PAGE_RTE) page_draw_rte(&g_screen);
+        else page_draw_legs(&g_screen);
+        snprintf(fmc_title, 32, "%s", g_pages[g_screen.current_page].title);
+        snprintf(fmc_scratchpad, 32, "%s", g_screen.scratchpad);
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+
+    // 其他功能键: 页面切换
     FMCPage page = func_to_page(btn->key);
     fmc_switch_page(page);
     snprintf(fmc_title, 32, "%s", g_pages[page].title);

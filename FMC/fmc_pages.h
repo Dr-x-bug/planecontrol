@@ -17,6 +17,12 @@ enum FMCPage {
     PAGE_COUNT
 };
 
+// DEP/ARR 模式切换
+extern char g_deparr_mode;
+
+// INIT/REF 子页面状态
+extern int g_init_subpage;
+
 // 前向声明
 struct FMCScreen;
 
