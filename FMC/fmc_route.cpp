@@ -88,7 +88,7 @@ void load_route_from_fms(const char* path) {
                 w.lat=lat; w.lon=lon; w.freq=0; w.type='F';
                 strncpy(w.id, id, 15); w.id[15]='\0';
             }
-            g_route.append(w);
+            g_route.append_leg(w.id, w.lat, w.lon);
             added++;
         }
     }
