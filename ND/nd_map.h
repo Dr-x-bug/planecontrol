@@ -41,8 +41,8 @@ inline double calc_dist_nm(double lat1, double lon1, double lat2, double lon2) {
 }
 
 constexpr int ARC_CX       = 375;
-constexpr int ARC_CY       = 480;
-constexpr int ARC_R        = 390;
+constexpr int ARC_CY       = 475;
+constexpr int ARC_R        = 430;
 constexpr int ARC_START    = 210;
 constexpr int ARC_END      = 330;
 constexpr int ACFT_Y       = 555;
@@ -100,20 +100,33 @@ inline void draw_next_wpt(NDRenderer& r) {
     r.draw_text_right(rx, 58, "01.0NM", Color::CYAN, true);
 }
 
-// ---- Compass arc + ticks + heading numbers ----
+// ---- Compass arc + rotating ticks + heading numbers ----
 inline void draw_arc_compass(NDRenderer& r, double hdg) {
     int cx = ARC_CX, cy = ARC_CY, rad = ARC_R;
 
-    // thicker arc band
+    // thicker arc band (fixed on screen)
     arcRGBA(r.sdl_rend, cx, cy, rad, ARC_START, ARC_END, 255, 255, 255, 220);
     arcRGBA(r.sdl_rend, cx, cy, rad+1, ARC_START, ARC_END, 255, 255, 255, 180);
     arcRGBA(r.sdl_rend, cx, cy, rad+2, ARC_START, ARC_END, 255, 255, 255, 100);
 
-    // ticks point inward (toward center)
-    for (int a = ARC_START; a <= ARC_END; a += 5) {
-        double ra = a * M_PI / 180.0;
+    // ===== 旋转刻度: 浮点连续计算, 平滑无闪烁 =====
+    // 刻度代表航向 H, 屏幕弧角 a = 270 + (H - hdg)
+    // 可视范围: a ∈ [210, 330] → H ∈ [hdg-60, hdg+60]
+    // 用 floor 找到起始航向, double 循环保证平滑滑动
+
+    double h_start = floor((hdg - 60.0) / 5.0) * 5.0;
+
+    for (double h = h_start; h <= hdg + 60.0; h += 5.0) {
+        // 浮点弧角: 随 hdg 连续变化, 不会跳跃
+        double arc_angle = 270.0 + (h - hdg);
+        if (arc_angle < ARC_START - 0.1 || arc_angle > ARC_END + 0.1) continue;
+
+        // 标签用整数航向 (四舍五入)
+        int hn = ((int)round(h) % 360 + 360) % 360;
+        bool major = (hn % 10 == 0);
+
+        double ra = arc_angle * M_PI / 180.0;
         double cosa = cos(ra), sina = sin(ra);
-        bool major = (a % 10 == 0);
         int tickLen = major ? 22 : 10;
         int alpha   = major ? 220 : 130;
 
@@ -124,7 +137,9 @@ inline void draw_arc_compass(NDRenderer& r, double hdg) {
         lineRGBA(r.sdl_rend, x1, y1, x2, y2, 255, 255, 255, alpha);
 
         if (major) {
-            int lbl = arc_heading_label(hdg, a);
+            // 主刻度标签: 0=N, 9=E, 18=S, 27=W
+            int lbl = (hn + 5) / 10;
+            if (lbl >= 36) lbl -= 36;
             char buf[4];
             snprintf(buf, sizeof(buf), "%d", lbl);
             int tx = cx + (int)((rad - 28) * cosa) - (lbl >= 10 ? 10 : 5);
@@ -133,7 +148,7 @@ inline void draw_arc_compass(NDRenderer& r, double hdg) {
         }
     }
 
-    // heading pointer at arc peak (270°)
+    // heading pointer at arc peak (270°) — 始终指向顶部
     int px = cx + (int)(rad * cos(270.0 * M_PI / 180.0));
     int py = cy + (int)(rad * sin(270.0 * M_PI / 180.0));
     Sint16 tri_x[3] = {(Sint16)px, (Sint16)(px - 9), (Sint16)(px + 9)};
@@ -234,44 +249,49 @@ inline void draw_waypoints(NDRenderer& r, const std::vector<Waypoint>& wpts,
     }
 }
 
-// ---- Navaids (enlarged: airport★ / VOR◇ / NDB● / FIX△ with labels) ----
+// ---- Navaids (机场★ / VOR◇ / NDB● / FIX△ 带标签) ----
 inline void draw_navaids(NDRenderer& r, GridHashTable& ht,
                          double ac_lat, double ac_lon, double ac_hdg) {
     auto nearby = query_nearby(ht, ac_lat, ac_lon, 80.0);
     int drawn = 0;
     for (auto* np : nearby) {
-        if (drawn >= 25) break;  // 最多25个导航台 (防卡顿)
+        if (drawn >= 50) break;  // 最多50个导航台
         int sx, sy;
         wpt_to_screen(ac_lat, ac_lon, ac_hdg, np->lat, np->lon, sx, sy);
+        // 裁剪: 超出圆弧范围且在下半部的跳过
         int dx = sx - ARC_CX, dy = sy - ARC_CY;
         if (dx*dx + dy*dy > ARC_R*ARC_R && sy > ARC_CY + ARC_R) continue;
 
         if (np->type == NAV_AIRPORT) {
-            // 大号白色圆圈 + 填充
-            filledCircleRGBA(r.sdl_rend, sx, sy, 7, 255, 255, 255, 180);
-            circleRGBA(r.sdl_rend, sx, sy, 8, 0, 220, 220, 220);
-            // ICAO 标签 (青色)
-            boxRGBA(r.sdl_rend, sx+9, sy-10, sx+9+(int)strlen(np->id)*7+2, sy+2, 0,0,0,160);
-            r.draw_text(sx+10, sy-8, np->id, Color::CYAN, true);
+            // 机场: 白色圆圈 + 青色ICAO标签
+            filledCircleRGBA(r.sdl_rend, sx, sy, 6, 255, 255, 255, 200);
+            circleRGBA(r.sdl_rend, sx, sy, 7, 0, 220, 220, 220);
+            int lw = (int)strlen(np->id) * 7 + 4;
+            boxRGBA(r.sdl_rend, sx+8, sy-11, sx+8+lw, sy+1, 0,0,0,180);
+            r.draw_text(sx+10, sy-9, np->id, Color::CYAN, true);
             drawn++;
         } else if (np->type == NAV_VOR) {
-            // VOR 六角形 (更大)
-            int d = 6;
+            // VOR: 绿色菱形 + 标签
+            int d = 5;
             Sint16 vx[4] = {(Sint16)sx, (Sint16)(sx+d), (Sint16)sx, (Sint16)(sx-d)};
             Sint16 vy[4] = {(Sint16)(sy-d), (Sint16)sy, (Sint16)(sy+d), (Sint16)sy};
-            filledPolygonRGBA(r.sdl_rend, vx, vy, 4, 0, 180, 100, 230);
-            boxRGBA(r.sdl_rend, sx+7, sy-10, sx+7+(int)strlen(np->id)*7+2, sy+2, 0,0,0,160);
-            r.draw_text(sx+8, sy-8, np->id, Color::GREEN_LT, true);
+            filledPolygonRGBA(r.sdl_rend, vx, vy, 4, 0, 200, 100, 230);
+            int lw = (int)strlen(np->id) * 7 + 4;
+            boxRGBA(r.sdl_rend, sx+7, sy-11, sx+7+lw, sy+1, 0,0,0,180);
+            r.draw_text(sx+8, sy-9, np->id, Color::GREEN_LT, true);
             drawn++;
         } else if (np->type == NAV_NDB) {
-            // NDB 圆点 (更大)
-            filledCircleRGBA(r.sdl_rend, sx, sy, 5, 0, 200, 200, 200);
-            circleRGBA(r.sdl_rend, sx, sy, 6, 0, 180, 180, 200);
+            // NDB: 青色圆点
+            filledCircleRGBA(r.sdl_rend, sx, sy, 4, 0, 220, 220, 200);
+            circleRGBA(r.sdl_rend, sx, sy, 5, 0, 180, 180, 200);
             drawn++;
         } else if (np->type == NAV_FIX) {
-            // FIX 三角 (更大)
+            // FIX: 蓝色三角 + 白色名称标签 (与图中效果一致)
             filledTrigonRGBA(r.sdl_rend, sx, sy-5, sx-5, sy+4, sx+5, sy+4,
-                             120, 120, 120, 180);
+                             80, 140, 255, 230);
+            int lw = (int)strlen(np->id) * 7 + 4;
+            boxRGBA(r.sdl_rend, sx+7, sy-11, sx+7+lw, sy+1, 0,0,0,180);
+            r.draw_text(sx+8, sy-9, np->id, Color::WHITE, true);
             drawn++;
         }
     }
