@@ -63,11 +63,11 @@ struct FMCScreen {
     char cost_idx[8];
 
     // CLB参数
-    char clb_spd[8];       // 爬升速度 (250kt)
-    char clb_spd_rest[16]; // 速度限制 (250/10000)
-    char clb_alt_rest[8];  // 高度限制 (FL200)
+    char clb_tgt_spd[8];   // TGT SPEED (290/.74)
+    char clb_spd_rest[16]; // SPD/ALT LIMIT 1 (250/10000)
+    char clb_spd_alt2[16]; // SPD/ALT LIMIT 2 (--/-----)
     char clb_rate[8];      // 爬升率
-    char clb_trans_alt[8]; // 过渡高度
+    char clb_trans_alt[8]; // TRANS ALT (12000)
 
     // CRZ参数
     char crz_turb_n1[8];    // 颠簸N1
@@ -96,9 +96,9 @@ struct FMCScreen {
         memset(flt_no, 0, sizeof(flt_no));
         memset(crz_alt, 0, sizeof(crz_alt));
         memset(cost_idx, 0, sizeof(cost_idx));
-        memset(clb_spd, 0, sizeof(clb_spd));
+        memset(clb_tgt_spd, 0, sizeof(clb_tgt_spd));
         memset(clb_spd_rest, 0, sizeof(clb_spd_rest));
-        memset(clb_alt_rest, 0, sizeof(clb_alt_rest));
+        memset(clb_spd_alt2, 0, sizeof(clb_spd_alt2));
         memset(clb_rate, 0, sizeof(clb_rate));
         memset(clb_trans_alt, 0, sizeof(clb_trans_alt));
         memset(crz_turb_n1, 0, sizeof(crz_turb_n1));
@@ -114,8 +114,9 @@ struct FMCScreen {
 
         // 默认值 (Boeing 737 典型值)
         strcpy(crz_alt, "FL350"); strcpy(cost_idx, "80");
-        strcpy(clb_spd, "290");   strcpy(clb_spd_rest, "250/10000");
-        strcpy(clb_trans_alt, "18000");
+        strcpy(clb_tgt_spd, "290/.74"); strcpy(clb_spd_rest, "250/10000");
+        strcpy(clb_spd_alt2, "--/-----");
+        strcpy(clb_trans_alt, "12000");
         strcpy(crz_turb_n1, "AUTO"); strcpy(crz_opt_alt, "FL345");
         strcpy(crz_max_alt, "FL390"); strcpy(crz_step, "FL370");
         strcpy(des_spd, "280");   strcpy(des_spd_rest, "240/10000");

@@ -270,6 +270,24 @@ void fmc_on_func_key(FMCButton* btn) {
         return;
     }
 
+    // PREV/NEXT: VNAV页面循环 CLB(1/3)↔CRZ(2/3)↔DES(3/3)
+    if (btn->key == FMC_KEY_PREV_PAGE && g_screen.current_page >= PAGE_CLB &&
+        g_screen.current_page <= PAGE_DES) {
+        FMCPage p = g_screen.current_page;
+        if (p == PAGE_CLB) p = PAGE_DES; else if (p == PAGE_CRZ) p = PAGE_CLB; else p = PAGE_CRZ;
+        fmc_switch_page(p);
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+    if (btn->key == FMC_KEY_NEXT_PAGE && g_screen.current_page >= PAGE_CLB &&
+        g_screen.current_page <= PAGE_DES) {
+        FMCPage p = g_screen.current_page;
+        if (p == PAGE_CLB) p = PAGE_CRZ; else if (p == PAGE_CRZ) p = PAGE_DES; else p = PAGE_CLB;
+        fmc_switch_page(p);
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+
     // 其他功能键: 页面切换
     FMCPage page = func_to_page(btn->key);
     fmc_switch_page(page);
@@ -343,13 +361,23 @@ void fmc_on_exec(FMCButton* btn) {
         auto valid_ci  = [](const char* s) { int c=atoi(s); return c>=0&&c<=500; };
 
         if (pg == PAGE_CLB) {
-            int row = -1;
-            for (int i=0;i<6;i++) if (g_screen.line_L[i][0] && g_screen.scratchpad[0]) row=i;
-            if (row==0 && valid_spd(val)) strncpy(g_screen.clb_spd, val, 7);
-            if (row==1) strncpy(g_screen.clb_spd_rest, val, 15);
-            if (row==2 && valid_alt(val)) strncpy(g_screen.clb_alt_rest, val, 7);
-            if (row==3) strncpy(g_screen.clb_rate, val, 7);
-            if (row==4 && valid_alt(val)) strncpy(g_screen.clb_trans_alt, val, 7);
+            // TGT SPEED: "290"→改knots, "/.76"→改mach
+            if (val[0] == '/' && val[1] == '.') {
+                float m = atof(val + 1);
+                if (m >= 0.40f && m <= 0.95f) {
+                    char buf[8]; snprintf(buf, 8, "290/%.2f", m);
+                    strncpy(g_screen.clb_tgt_spd, buf, 7);
+                }
+            } else if (atoi(val) >= 100 && atoi(val) <= 399) {
+                const char* slash = strchr(g_screen.clb_tgt_spd, '/');
+                char buf[8];
+                snprintf(buf, 8, "%d%s", atoi(val), slash ? slash : "/.74");
+                strncpy(g_screen.clb_tgt_spd, buf, 7);
+            }
+            // SPD/ALT LIMIT
+            if (strchr(val, '/')) strncpy(g_screen.clb_spd_rest, val, 15);
+            // TRANS ALT
+            if (valid_alt(val)) strncpy(g_screen.clb_trans_alt, val, 7);
         } else if (pg == PAGE_CRZ) {
             int row = -1;
             for (int i=0;i<6;i++) if (g_screen.line_L[i][0] && g_screen.scratchpad[0]) row=i;

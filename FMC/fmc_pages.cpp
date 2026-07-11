@@ -103,32 +103,31 @@ void page_draw_rte(FMCScreen* scr) {
 
 void page_draw_clb(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "CLB");          scr->set_line_R(0, "ECON");
-    scr->set_line_L(1, "SPD RESTR");    scr->set_line_R(1, scr->clb_spd_rest);
-    scr->set_line_L(2, "ALT RESTR");    scr->set_line_R(2, scr->clb_alt_rest[0]?scr->clb_alt_rest:"-----");
-    scr->set_line_L(3, "CLB RATE");     scr->set_line_R(3, scr->clb_rate[0]?scr->clb_rate:"ECON");
-    scr->set_line_L(4, "TRANS ALT");    scr->set_line_R(4, scr->clb_trans_alt);
-    scr->set_line_L(5, "ENG OUT ACC");  scr->set_line_R(5, "1000FT");
+    scr->set_line_L(0, "ACT VNAV CLIMB");                scr->set_line_R(0, "1/3");
+    scr->set_line_L(1, "TGT SPEED");   scr->set_line_L_val(1, scr->clb_tgt_spd);
+    scr->set_line_R(1, "TRANS ALT");   scr->set_line_R_val(1, scr->clb_trans_alt);
+    scr->set_line_L(3, "SPD/ALT LIMIT"); scr->set_line_L_val(3, scr->clb_spd_rest);
+    scr->set_line_L_val(4, scr->clb_spd_alt2);
 }
 
 void page_draw_crz(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "CRZ ALT");      scr->set_line_R(0, scr->crz_alt);
-    scr->set_line_L(1, "COST INDEX");   scr->set_line_R(1, scr->cost_idx);
-    scr->set_line_L(2, "TURB N1");      scr->set_line_R(2, scr->crz_turb_n1);
-    scr->set_line_L(3, "OPT ALT");      scr->set_line_R(3, scr->crz_opt_alt);
-    scr->set_line_L(4, "MAX ALT");      scr->set_line_R(4, scr->crz_max_alt);
-    scr->set_line_L(5, "STEP TO");      scr->set_line_R(5, scr->crz_step);
+    scr->set_line_L(0, "ACT VNAV CRUISE");              scr->set_line_R(0, "2/3");
+    scr->set_line_L(1, "CRZ ALT");    scr->set_line_R(1, scr->crz_alt);
+    scr->set_line_L(2, "COST INDEX"); scr->set_line_R(2, scr->cost_idx);
+    scr->set_line_L(3, "TURB N1");    scr->set_line_R(3, scr->crz_turb_n1);
+    scr->set_line_L(4, "OPT ALT");    scr->set_line_R(4, scr->crz_opt_alt);
+    scr->set_line_L(5, "MAX ALT");    scr->set_line_R(5, scr->crz_max_alt);
 }
 
 void page_draw_des(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "DES SPD");      scr->set_line_R(0, scr->des_spd);
-    scr->set_line_L(1, "SPD RESTR");    scr->set_line_R(1, scr->des_spd_rest);
-    scr->set_line_L(2, "ALT RESTR");    scr->set_line_R(2, scr->des_alt_rest[0]?scr->des_alt_rest:"-----");
-    scr->set_line_L(3, "DES RATE");     scr->set_line_R(3, scr->des_rate[0]?scr->des_rate:"ECON");
-    scr->set_line_L(4, "TRANS LVL");    scr->set_line_R(4, scr->des_trans_lvl);
-    scr->set_line_L(5, "DECEL");        scr->set_line_R(5, "10NM");
+    scr->set_line_L(0, "ACT VNAV DESCENT");             scr->set_line_R(0, "3/3");
+    scr->set_line_L(1, "DES SPD");    scr->set_line_R(1, scr->des_spd);
+    scr->set_line_L(2, "SPD RESTR");  scr->set_line_R(2, scr->des_spd_rest);
+    scr->set_line_L(3, "ALT RESTR");  scr->set_line_R(3, scr->des_alt_rest[0]?scr->des_alt_rest:"-----");
+    scr->set_line_L(4, "TRANS LVL");  scr->set_line_R(4, scr->des_trans_lvl);
+    scr->set_line_L(5, "DECEL");      scr->set_line_R(5, "10NM");
 }
 
 void page_draw_dep_arr(FMCScreen* scr) {
@@ -271,7 +270,8 @@ void fmc_draw_screen(FMCRenderer& r) {
     // INDEX主页: 白色大字; 其他页: 青绿色小字
     // 双行: STATUS 或 RTE输入模式(无航段时)
     // 双行: STATUS(蓝标签+白值) 或 RTE输入(全白大字)
-    bool is_dual     = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1);
+    bool is_dual     = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1)
+                     || (g_screen.current_page == PAGE_CLB);
     bool is_rte_dual = (g_screen.current_page == PAGE_RTE && g_route.current_page == 0);
     bool is_rte_legs = (g_screen.current_page == PAGE_RTE && g_route.current_page > 0);
     bool is_index  = (g_screen.current_page == PAGE_INDEX);
