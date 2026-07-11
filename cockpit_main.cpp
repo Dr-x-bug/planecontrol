@@ -45,9 +45,74 @@
 
 // 全局同步回调实例 (定义在fmc_shm_sync.h中声明)
 RouteSyncCallback g_route_sync_cb = nullptr;
+XPlaneFmcSyncCallback g_xplane_fmc_sync_cb = nullptr;
 
 static SharedMemoryIPC g_shm_cockpit;
 static LONG            g_shm_last_version = 0;
+
+// 通过 sendCOMM 模拟按键, 将航路写入 X-Plane FMC
+static void cockpit_sync_to_xplane_fmc(const char* origin, const char* dest, const char* flt_no) {
+    if (!g_xpc_ready) return;
+    if (!origin[0] || !dest[0]) return;
+
+    printf("[XPC-FMC] Syncing route to X-Plane FMC: %s → %s (%s)\n", origin, dest, flt_no);
+
+    // 1. 清空: CLR → DEL → CLR
+    sendCOMM(g_xpc_sock, "sim/FMS/clear");
+    Sleep(80);
+    sendCOMM(g_xpc_sock, "sim/FMS/key_period"); // DEL 用小数点模拟
+    Sleep(80);
+    sendCOMM(g_xpc_sock, "sim/FMS/clear");
+    Sleep(80);
+
+    // 2. 按 FPLN (RTE) 进入航路页
+    sendCOMM(g_xpc_sock, "sim/FMS/fpln");
+    Sleep(100);
+
+    // 3. 按 L1 行选键, 输入起飞机场
+    sendCOMM(g_xpc_sock, "sim/FMS/ls_1l");
+    Sleep(80);
+    for (const char* p = origin; *p; p++) {
+        char cmd[32];
+        snprintf(cmd, 32, "sim/FMS/key_%c", *p);
+        sendCOMM(g_xpc_sock, cmd);
+        Sleep(60);
+    }
+    Sleep(100);
+
+    // 4. 按 R1 行选键, 输入目的地机场
+    sendCOMM(g_xpc_sock, "sim/FMS/ls_1r");
+    Sleep(80);
+    for (const char* p = dest; *p; p++) {
+        char cmd[32];
+        snprintf(cmd, 32, "sim/FMS/key_%c", *p);
+        sendCOMM(g_xpc_sock, cmd);
+        Sleep(60);
+    }
+    Sleep(100);
+
+    // 5. 按 L2, 输入航班号
+    if (flt_no[0]) {
+        sendCOMM(g_xpc_sock, "sim/FMS/ls_2l");
+        Sleep(80);
+        for (const char* p = flt_no; *p; p++) {
+            char cmd[32];
+            if (*p >= '0' && *p <= '9')
+                snprintf(cmd, 32, "sim/FMS/key_%c", *p);
+            else if (*p >= 'A' && *p <= 'Z')
+                snprintf(cmd, 32, "sim/FMS/key_%c", *p);
+            else
+                continue;
+            sendCOMM(g_xpc_sock, cmd);
+            Sleep(60);
+        }
+    }
+
+    // 6. 按 EXEC 确认
+    Sleep(100);
+    sendCOMM(g_xpc_sock, "sim/FMS/exec");
+    printf("[XPC-FMC] Route sync complete\n");
+}
 
 // 将FMC航路数据同步到共享内存
 static void cockpit_sync_route_to_shm() {
@@ -209,6 +274,7 @@ static bool fmc_module_init(FMCRenderer& fmc_renderer) {
 
     // 注册航路同步回调 (供fmc_buttons调用)
     g_route_sync_cb = cockpit_sync_route_to_shm;
+    g_xplane_fmc_sync_cb = cockpit_sync_to_xplane_fmc;
 
     return true;
 }

@@ -53,6 +53,7 @@ struct FMCScreen {
 
     // EXEC灯
     bool exec_light;
+    bool route_ready;  // RTE数据就绪(origin+dest+flt_no已填)
 
     // 临时数据 (各页面共享)
     char origin[8];
@@ -82,7 +83,7 @@ struct FMCScreen {
     char des_rate[8];      // 下降率
     char des_trans_lvl[8]; // 过渡高度层
 
-    FMCScreen() : current_page(PAGE_INDEX), need_redraw(true), exec_light(false) { clear_all(); }
+    FMCScreen() : current_page(PAGE_INDEX), need_redraw(true), exec_light(false), route_ready(false) { clear_all(); }
 
     void clear_all() {
         memset(line_L, 0, sizeof(line_L));

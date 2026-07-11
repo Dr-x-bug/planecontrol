@@ -76,48 +76,18 @@ void page_draw_init_ref(FMCScreen* scr) {
 
 void page_draw_rte(FMCScreen* scr) {
     scr->clear_lines();
-    int start = g_route.page_start(), end = g_route.page_end(), total = g_route.total_pages();
 
-    // 第1行: ORIGIN (可输入) | DEST (可输入)
-    scr->set_line_L(0, "ORIGIN");
-    scr->set_line_R(0, scr->dest[0] ? scr->dest : "□□□□");
+    // Row0 L1/R1: ORIGIN | DEST (上=蓝标签, 下=白数值)
+    scr->set_line_L(0, "ORIGIN");     scr->set_line_L_val(0, scr->origin[0] ? scr->origin : "□□□□");
+    scr->set_line_R(0, "DEST");       scr->set_line_R_val(0, scr->dest[0]   ? scr->dest   : "□□□□");
 
-    // 第2行: CO ROUTE | FLT NO (可输入)
-    scr->set_line_L(1, "CO ROUTE");
-    scr->set_line_R(1, scr->flt_no[0] ? scr->flt_no : "------");
+    // Row2 L2/R3: CO ROUTE | FLT NO
+    scr->set_line_L(2, "CO ROUTE");   scr->set_line_L_val(2, "-----");
+    scr->set_line_R(2, "FLT NO");     scr->set_line_R_val(2, scr->flt_no[0] ? scr->flt_no : "-----");
 
-    // 第3-5行: 航路点
-    int display_row = 2;
-    for (int i = 0; i < PAGE_SIZE && display_row < 5; i++) {
-        const RouteWpt* w = g_route.get_page_wpt(i);
-        if (w) {
-            scr->set_line_L(display_row, w->id);
-            char info[24];
-            snprintf(info, 24, "%.2f/%.2f", w->lat, w->lon);
-            scr->set_line_R(display_row, info);
-            display_row++;
-        }
-    }
-
-    if (g_route.count == 0) {
-        scr->set_line_L(2, "-----");
-        scr->set_line_R(2, "DIRECT");
-    }
-
-    // 底部: 翻页 & ACTIVATE
-    if (total > 1) {
-        scr->set_line_L(5, "<PREV PAGE");
-        char pg[24]; snprintf(pg, 24, "%d/%d>", g_route.current_page + 1, total);
-        scr->set_line_R(5, pg);
-    } else {
-        scr->set_line_L(5, "");
-        scr->set_line_R(5, "");
-    }
-    scr->set_line_L(4, "<ACTIVATE>");
-    scr->set_line_R(4, "EXEC>");
-
-    // R1 显示 ORIGIN 当前值
-    scr->set_line_R(0, scr->origin[0] ? scr->origin : "KSEA");
+    // Row4 L5/R5: VIA | TO
+    scr->set_line_L(4, "VIA");        scr->set_line_L_val(4, "-----");
+    scr->set_line_R(4, "TO");         scr->set_line_R_val(4, "-----");
 }
 
 void page_draw_clb(FMCScreen* scr) {
@@ -285,19 +255,21 @@ void fmc_draw_screen(FMCRenderer& r) {
     r.draw_text_center(315, 90, g_pages[g_screen.current_page].title, Color::FMC_CYAN, false);
 
     // 6行文字, 与LSK按钮对齐
-    // STATUS页: 蓝色小字标签(上) + 白色大字数值(下)
+    // STATUS页: 蓝色小字标签(上) + 白色大字数值(下) 同行双行
+    // RTE页:   偶数行蓝色标签, 奇数行白色数值 (交替)
     // INDEX主页: 白色大字; 其他页: 青绿色小字
-    bool is_status = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1);
+    bool is_dual  = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1)
+                 || (g_screen.current_page == PAGE_RTE);
     bool is_index  = (g_screen.current_page == PAGE_INDEX);
     SDL_Color line_c = is_index ? Color::FMC_WHITE : Color::FMC_CYAN;
     bool line_sm    = is_index ? false : true;
 
-    int ly[6] = {128, 176, 224, 272, 320, 368};
+    // 6行y坐标 (对齐LSK按钮中心: L1≈140, L2≈188, L3≈236, L4≈284, L5≈332, L6≈380)
+    int ly[6] = {140, 188, 236, 284, 332, 380};
     for (int i = 0; i < 6; i++) {
-        if (is_status) {
-            // STATUS 双行: 标签居中偏上, 值在下方
-            int ly_top = ly[i] - 6;   // 标签行 (蓝色小字)
-            int ly_val = ly[i] + 12;  // 数值行 (白色大字)
+        if (is_dual) {
+            // 双行: 蓝色标签(上, y-8) + 白色数值(下, y+10)
+            int ly_top = ly[i] - 8, ly_val = ly[i] + 10;
             if (g_screen.line_L[i][0])
                 r.draw_text(106, ly_top, g_screen.line_L[i], Color::FMC_BLUE, true);
             if (g_screen.line_L_val[i][0])
@@ -315,7 +287,13 @@ void fmc_draw_screen(FMCRenderer& r) {
         }
     }
 
-    // ===== 草稿栏 (青绿色, 各居屏幕两端) =====
+    // ===== RTE页底部LSK =====
+    if (g_screen.current_page == PAGE_RTE) {
+        r.draw_text(106, 392, "<ROUTE MENU", Color::FMC_BLUE, true);
+        r.draw_text_right(526, 392, "ACTIVATE>", Color::FMC_BLUE, true);
+    }
+
+    // ===== 草稿栏 =====
     int sy = 400;
     r.draw_text(106, sy, "<", Color::FMC_CYAN, false);
     r.draw_text_right(526, sy, ">", Color::FMC_CYAN, false);
@@ -323,7 +301,7 @@ void fmc_draw_screen(FMCRenderer& r) {
         r.draw_text(122, sy, g_screen.scratchpad, Color::FMC_CYAN, false);
 
     // EXEC 灯
-    if (g_screen.exec_light) {
+    if (g_screen.exec_light || g_screen.route_ready) {
         r.draw_text(480, sy, "EXEC", Color::FMC_AMBER, false);
     }
 }

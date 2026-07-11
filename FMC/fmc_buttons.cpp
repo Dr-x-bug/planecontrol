@@ -205,6 +205,13 @@ void fmc_on_lsk(FMCButton* btn) {
         if (idx == 1 && left && g_screen.scratchpad[0]) {
             strncpy(g_screen.flt_no, g_screen.scratchpad, 15);
             g_screen.clear_scratchpad();
+            route_changed = true;
+        }
+        // 每次修改后检查: ORIGIN+DEST+FLT_NO 是否全部填写
+        if (route_changed) {
+            g_screen.route_ready = (g_screen.origin[0] && g_screen.dest[0] && g_screen.flt_no[0]);
+            g_screen.exec_light = g_screen.route_ready;
+            fmc_exec_light = g_screen.exec_light;
         }
         // 其他LSK: 通用处理
         if (idx < 4 && !(idx == 0 || idx == 1)) g_screen.lsk_press(idx, left);
@@ -286,6 +293,22 @@ void fmc_on_edit(FMCButton* btn) {
 }
 
 void fmc_on_exec(FMCButton* btn) {
+    // RTE页: 若route_ready, EXEC执行同步
+    if (g_screen.current_page == PAGE_RTE && g_screen.route_ready) {
+        g_screen.route_ready = false;
+        g_screen.exec_light = false;
+        fmc_exec_light = false;
+        btn->state = FMC_STATE_NORMAL;
+
+        // 同步到共享内存 + X-Plane FMC
+        fmc_route_sync_call();
+        fmc_xplane_sync_call(g_screen.origin, g_screen.dest, g_screen.flt_no);
+
+        snprintf(g_screen.scratchpad, 32, "ROUTE SYNCED");
+        snprintf(fmc_scratchpad, 32, "%s", g_screen.scratchpad);
+        return;
+    }
+
     g_screen.exec_light = !g_screen.exec_light;
     fmc_exec_light = g_screen.exec_light;
     btn->state = g_screen.exec_light ? FMC_STATE_ACTIVE : FMC_STATE_NORMAL;
