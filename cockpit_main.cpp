@@ -142,7 +142,7 @@ static bool nd_module_init(NDRenderer& nd_renderer,
     }
 
     // 2. 加载飞行计划 (.fms)
-    wpts = load_fms("ND/assets/KSEAKBFI.fms");
+    wpts = load_fms("assets/KSEAKBFI.fms");
     printf("[Cockpit] ND loaded %zu waypoints\n", wpts.size());
 
     // 3. 启动 X-Plane 数据线程
@@ -162,7 +162,7 @@ static bool nd_module_init(NDRenderer& nd_renderer,
 
     // 4. 回退: 文件数据模式
     if (!g_use_xpc_thread) {
-        if (!nd_data_open("ND/assets/nd.dat")) {
+        if (!nd_data_open("assets/nd.dat")) {
             printf("[Cockpit] Failed to open nd.dat!\n");
             return false;
         }
@@ -171,9 +171,9 @@ static bool nd_module_init(NDRenderer& nd_renderer,
 
     // 5. 加载导航数据库 (哈希表)
     ht.init();
-    load_navaids(ht, "ND/assets/earth_nav.dat");
-    load_fixes(ht, "ND/assets/earth_fix.dat");
-    load_airports(ht, "ND/assets/apt.dat");
+    load_navaids(ht, "assets/earth_nav.dat");
+    load_fixes(ht, "assets/earth_fix.dat");
+    load_airports(ht, "assets/apt.dat");
     printf("[Cockpit] Hash table: %d nav points\n", ht.point_count);
 
     return true;
@@ -189,10 +189,10 @@ static bool fmc_module_init(FMCRenderer& fmc_renderer) {
     }
 
     // 加载导航数据到 AVL 树 + 飞行计划到航道数组
-    load_navdata_avl("FMC/assets/earth_nav.dat",
-                     "FMC/assets/earth_fix.dat",
-                     "FMC/assets/apt.dat");
-    load_route_from_fms("FMC/assets/KSEAKBFI.fms");
+    load_navdata_avl("assets/earth_nav.dat",
+                     "assets/earth_fix.dat",
+                     "assets/apt.dat");
+    load_route_from_fms("assets/KSEAKBFI.fms");
     printf("[Cockpit] FMC route: %d waypoints\n", g_route.count);
 
     // 初始化按钮并切换到初始页面

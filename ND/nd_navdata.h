@@ -24,7 +24,7 @@ extern "C" {
 #define MAX_TOTAL_WAYPOINTS    240000      // 固定总容量
 #define HASH_BUCKET_SIZE       1009        // 哈希桶数量（质数）
 #define GRID_SIZE              1.0         // 网格大小 1.0°
-#define DATA_ROOT_PATH         "assets/"   // 数据文件根路径
+#define DATA_ROOT_PATH         "../assets/" // 数据文件根路径
 #define EARTH_RADIUS_KM        6371.0      // 地球平均半径 (km)
 #define FILTER_DISTANCE_KM     148.0       // 查询范围 148km ≈ 80nm
 #define MAX_FILTER_RESULT_SIZE 30          // 最大结果数
