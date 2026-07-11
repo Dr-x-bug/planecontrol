@@ -112,12 +112,9 @@ void page_draw_clb(FMCScreen* scr) {
 
 void page_draw_crz(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "ACT VNAV CRUISE");              scr->set_line_R(0, "2/3");
-    scr->set_line_L(1, "CRZ ALT");    scr->set_line_R(1, scr->crz_alt);
-    scr->set_line_L(2, "COST INDEX"); scr->set_line_R(2, scr->cost_idx);
-    scr->set_line_L(3, "TURB N1");    scr->set_line_R(3, scr->crz_turb_n1);
-    scr->set_line_L(4, "OPT ALT");    scr->set_line_R(4, scr->crz_opt_alt);
-    scr->set_line_L(5, "MAX ALT");    scr->set_line_R(5, scr->crz_max_alt);
+    scr->set_line_L(0, "VNAV CRUISE");                scr->set_line_R(0, "2/3");
+    scr->set_line_L(2, "TGT SPEED");  scr->set_line_L_val(2, scr->crz_tgt_spd);
+    scr->set_line_R(2, "CRZ ALT");    scr->set_line_R_val(2, scr->crz_alt[0] ? scr->crz_alt : "-----");
 }
 
 void page_draw_des(FMCScreen* scr) {
@@ -271,7 +268,8 @@ void fmc_draw_screen(FMCRenderer& r) {
     // 双行: STATUS 或 RTE输入模式(无航段时)
     // 双行: STATUS(蓝标签+白值) 或 RTE输入(全白大字)
     bool is_dual     = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1)
-                     || (g_screen.current_page == PAGE_CLB);
+                     || (g_screen.current_page == PAGE_CLB)
+                     || (g_screen.current_page == PAGE_CRZ);
     bool is_rte_dual = (g_screen.current_page == PAGE_RTE && g_route.current_page == 0);
     bool is_rte_legs = (g_screen.current_page == PAGE_RTE && g_route.current_page > 0);
     bool is_index  = (g_screen.current_page == PAGE_INDEX);

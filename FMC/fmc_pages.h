@@ -59,8 +59,6 @@ struct FMCScreen {
     char origin[8];
     char dest[8];
     char flt_no[16];
-    char crz_alt[8];
-    char cost_idx[8];
 
     // CLB参数
     char clb_tgt_spd[8];   // TGT SPEED (290/.74)
@@ -70,9 +68,12 @@ struct FMCScreen {
     char clb_trans_alt[8]; // TRANS ALT (12000)
 
     // CRZ参数
-    char crz_turb_n1[8];    // 颠簸N1
-    char crz_opt_alt[8];    // 最佳高度
-    char crz_max_alt[8];    // 最大高度
+    char crz_tgt_spd[8];   // TGT SPEED (300/.74)
+    char crz_alt[8];
+    char cost_idx[8];
+    char crz_turb_n1[8];
+    char crz_opt_alt[8];
+    char crz_max_alt[8];
     char crz_step[8];       // 阶梯爬升
     char crz_wind[16];      // 巡航风
 
@@ -101,6 +102,7 @@ struct FMCScreen {
         memset(clb_spd_alt2, 0, sizeof(clb_spd_alt2));
         memset(clb_rate, 0, sizeof(clb_rate));
         memset(clb_trans_alt, 0, sizeof(clb_trans_alt));
+        memset(crz_tgt_spd, 0, sizeof(crz_tgt_spd));
         memset(crz_turb_n1, 0, sizeof(crz_turb_n1));
         memset(crz_opt_alt, 0, sizeof(crz_opt_alt));
         memset(crz_max_alt, 0, sizeof(crz_max_alt));
@@ -117,6 +119,7 @@ struct FMCScreen {
         strcpy(clb_tgt_spd, "290/.74"); strcpy(clb_spd_rest, "250/10000");
         strcpy(clb_spd_alt2, "--/-----");
         strcpy(clb_trans_alt, "12000");
+        strcpy(crz_tgt_spd, "300/.74");
         strcpy(crz_turb_n1, "AUTO"); strcpy(crz_opt_alt, "FL345");
         strcpy(crz_max_alt, "FL390"); strcpy(crz_step, "FL370");
         strcpy(des_spd, "280");   strcpy(des_spd_rest, "240/10000");

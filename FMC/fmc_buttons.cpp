@@ -379,14 +379,21 @@ void fmc_on_exec(FMCButton* btn) {
             // TRANS ALT
             if (valid_alt(val)) strncpy(g_screen.clb_trans_alt, val, 7);
         } else if (pg == PAGE_CRZ) {
-            int row = -1;
-            for (int i=0;i<6;i++) if (g_screen.line_L[i][0] && g_screen.scratchpad[0]) row=i;
-            if (row==0 && valid_alt(val)) strncpy(g_screen.crz_alt, val, 7);
-            if (row==1 && valid_ci(val))  strncpy(g_screen.cost_idx, val, 7);
-            if (row==2) strncpy(g_screen.crz_turb_n1, val, 7);
-            if (row==3 && valid_alt(val)) strncpy(g_screen.crz_opt_alt, val, 7);
-            if (row==4 && valid_alt(val)) strncpy(g_screen.crz_max_alt, val, 7);
-            if (row==5) strncpy(g_screen.crz_step, val, 7);
+            // TGT SPEED
+            if (val[0] == '/' && val[1] == '.') {
+                float m = atof(val + 1);
+                if (m >= 0.40f && m <= 0.95f) {
+                    char buf[8]; snprintf(buf, 8, "300/%.2f", m);
+                    strncpy(g_screen.crz_tgt_spd, buf, 7);
+                }
+            } else if (atoi(val) >= 100 && atoi(val) <= 399) {
+                const char* slash = strchr(g_screen.crz_tgt_spd, '/');
+                char buf[8];
+                snprintf(buf, 8, "%d%s", atoi(val), slash ? slash : "/.74");
+                strncpy(g_screen.crz_tgt_spd, buf, 7);
+            }
+            // CRZ ALT
+            if (valid_alt(val)) strncpy(g_screen.crz_alt, val, 7);
         } else if (pg == PAGE_DES) {
             int row = -1;
             for (int i=0;i<6;i++) if (g_screen.line_L[i][0] && g_screen.scratchpad[0]) row=i;
