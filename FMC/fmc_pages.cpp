@@ -282,13 +282,18 @@ void fmc_draw_screen(FMCRenderer& r) {
     // 第1行: 页面标题(中) — 青绿色大字
     r.draw_text_center(315, 90, g_pages[g_screen.current_page].title, Color::FMC_CYAN, false);
 
-    // 6行文字, 与LSK按钮对齐 — 青绿色
+    // 6行文字, 与LSK按钮对齐
+    // INDEX主页: 白色大字; 其他页: 青绿色小字
+    bool is_index = (g_screen.current_page == PAGE_INDEX);
+    SDL_Color line_c = is_index ? Color::FMC_WHITE : Color::FMC_CYAN;
+    bool line_sm    = is_index ? false : true;
+
     int ly[6] = {128, 176, 224, 272, 320, 368};
     for (int i = 0; i < 6; i++) {
         if (g_screen.line_L[i][0])
-            r.draw_text(106, ly[i], g_screen.line_L[i], Color::FMC_CYAN, true);
+            r.draw_text(106, ly[i], g_screen.line_L[i], line_c, line_sm);
         if (g_screen.line_R[i][0])
-            r.draw_text_right(526, ly[i], g_screen.line_R[i], Color::FMC_CYAN, true);
+            r.draw_text_right(526, ly[i], g_screen.line_R[i], line_c, line_sm);
     }
 
     // ===== 草稿栏 (青绿色, 各居屏幕两端) =====
