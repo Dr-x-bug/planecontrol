@@ -106,48 +106,54 @@ struct AVLTree {
     ~AVLTree() { destroy_node(root); }
 };
 
+// ===== 航段结构 =====
+struct RouteLeg {
+    char via[16];      // "DIRECT" 或 airway名
+    char to[16];       // 航路点ID
+    double to_lat, to_lon;
+};
+
 // ===== 航道数组 (RTE页面数据) =====
 constexpr int MAX_ROUTE_WPTS = 50;
-constexpr int PAGE_SIZE = 5;
+constexpr int LEGS_PER_PAGE  = 4;    // 每页4个航段
 
 struct RouteArray {
     RouteWpt wpts[MAX_ROUTE_WPTS];
+    RouteLeg legs[MAX_ROUTE_WPTS];
     int      count;
     int      current_page;      // 当前显示页 (0-based)
 
     RouteArray() : count(0), current_page(0) {}
 
-    void clear() { count = 0; current_page = 0; }
+    void clear() { count = 0; current_page = 0; memset(legs, 0, sizeof(legs)); }
     bool is_full() const { return count >= MAX_ROUTE_WPTS; }
 
-    // 添加航路点到末尾
-    bool append(const RouteWpt& wpt) {
+    // 添加航段 (默认DIRECT)
+    bool append_leg(const char* wpt_id, double lat, double lon) {
         if (count >= MAX_ROUTE_WPTS) return false;
-        wpts[count++] = wpt;
+        strncpy(legs[count].via, "DIRECT", 15);
+        strncpy(legs[count].to, wpt_id, 15);
+        legs[count].to_lat = lat;
+        legs[count].to_lon = lon;
+        // 同步到 wpts 数组 (兼容旧逻辑)
+        strncpy(wpts[count].id, wpt_id, 15);
+        wpts[count].lat = lat;
+        wpts[count].lon = lon;
+        wpts[count].type = 'F';
+        count++;
         return true;
     }
 
-    // 删除指定位置
-    bool remove(int idx) {
-        if (idx < 0 || idx >= count) return false;
-        for (int i = idx; i < count - 1; i++) wpts[i] = wpts[i+1];
-        count--;
-        return true;
-    }
+    // 翻页 (page 0=输入表单, page 1+=航段)
+    int total_pages() const { return 1 + (count + LEGS_PER_PAGE - 1) / LEGS_PER_PAGE; }
+    int page_start() const { return (current_page - 1) * LEGS_PER_PAGE; }
+    int page_end()   const { int e = page_start() + LEGS_PER_PAGE; return e < count ? e : count; }
 
-    // 获取当前页数据
-    int page_start() const { return current_page * PAGE_SIZE; }
-    int page_end()   const { int e = page_start() + PAGE_SIZE; return e < count ? e : count; }
-    int total_pages() const { return (count + PAGE_SIZE - 1) / PAGE_SIZE; }
+    bool can_next() const { return current_page < total_pages() - 1; }
+    bool can_prev() const { return current_page > 0; }
 
-    void next_page() {
-        if (current_page < total_pages() - 1) current_page++;
-    }
-    void prev_page() {
-        if (current_page > 0) current_page--;
-    }
-
-    // 获取当前页的某个航路点 (0-4)
+    void next_page() { if (can_next()) current_page++; }
+    void prev_page() { if (can_prev()) current_page--; }
     const RouteWpt* get_page_wpt(int idx) const {
         int actual = page_start() + idx;
         if (actual >= count) return nullptr;

@@ -76,18 +76,29 @@ void page_draw_init_ref(FMCScreen* scr) {
 
 void page_draw_rte(FMCScreen* scr) {
     scr->clear_lines();
+    char pg[16]; snprintf(pg, 16, "%d/%d", g_route.current_page + 1, g_route.total_pages());
 
-    // Row0 L1/R1: ORIGIN | DEST (上=蓝标签, 下=白数值)
-    scr->set_line_L(0, "ORIGIN");     scr->set_line_L_val(0, scr->origin[0] ? scr->origin : "□□□□");
-    scr->set_line_R(0, "DEST");       scr->set_line_R_val(0, scr->dest[0]   ? scr->dest   : "□□□□");
-
-    // Row2 L2/R3: CO ROUTE | FLT NO
-    scr->set_line_L(2, "CO ROUTE");   scr->set_line_L_val(2, "-----");
-    scr->set_line_R(2, "FLT NO");     scr->set_line_R_val(2, scr->flt_no[0] ? scr->flt_no : "-----");
-
-    // Row4 L5/R5: VIA | TO
-    scr->set_line_L(4, "VIA");        scr->set_line_L_val(4, "-----");
-    scr->set_line_R(4, "TO");         scr->set_line_R_val(4, "-----");
+    if (g_route.current_page == 0) {
+        // === Page 1: L1=ORIGIN, R1=DEST, L3=FLT_NO, L5=VIA ===
+        scr->set_line_R(0, pg);
+        scr->set_line_L(0, "ORIGIN");     scr->set_line_L_val(0, scr->origin[0] ? scr->origin : "□□□□");
+        scr->set_line_R(0, "DEST");       scr->set_line_R_val(0, scr->dest[0]   ? scr->dest   : "□□□□");
+        scr->set_line_L(2, "CO ROUTE");   scr->set_line_L_val(2, "-----");
+        scr->set_line_R(2, "FLT NO");     scr->set_line_R_val(2, scr->flt_no[0] ? scr->flt_no : "-----");
+        scr->set_line_L(4, "VIA");        scr->set_line_R(4, "TO");
+    } else {
+        // === Page 2+: 航段浏览 ===
+        int start = g_route.page_start(), end = g_route.page_end();
+        scr->set_line_L(0, "ACT FPLN");
+        scr->set_line_R(0, pg);
+        scr->set_line_L(1, "VIA");
+        scr->set_line_R(1, "TO");
+        int row = 2;
+        for (int i = start; i < end && row <= 5; i++, row++) {
+            scr->set_line_L(row, g_route.legs[i].via);
+            scr->set_line_R(row, g_route.legs[i].to);
+        }
+    }
 }
 
 void page_draw_clb(FMCScreen* scr) {
@@ -258,8 +269,11 @@ void fmc_draw_screen(FMCRenderer& r) {
     // STATUS页: 蓝色小字标签(上) + 白色大字数值(下) 同行双行
     // RTE页:   偶数行蓝色标签, 奇数行白色数值 (交替)
     // INDEX主页: 白色大字; 其他页: 青绿色小字
-    bool is_dual  = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1)
-                 || (g_screen.current_page == PAGE_RTE);
+    // 双行: STATUS 或 RTE输入模式(无航段时)
+    // 双行: STATUS(蓝标签+白值) 或 RTE输入(全白大字)
+    bool is_dual     = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1);
+    bool is_rte_dual = (g_screen.current_page == PAGE_RTE && g_route.current_page == 0);
+    bool is_rte_legs = (g_screen.current_page == PAGE_RTE && g_route.current_page > 0);
     bool is_index  = (g_screen.current_page == PAGE_INDEX);
     SDL_Color line_c = is_index ? Color::FMC_WHITE : Color::FMC_CYAN;
     bool line_sm    = is_index ? false : true;
@@ -268,7 +282,7 @@ void fmc_draw_screen(FMCRenderer& r) {
     int ly[6] = {140, 188, 236, 284, 332, 380};
     for (int i = 0; i < 6; i++) {
         if (is_dual) {
-            // 双行: 蓝色标签(上, y-8) + 白色数值(下, y+10)
+            // STATUS: 蓝色标签(上) + 白色数值(下)
             int ly_top = ly[i] - 8, ly_val = ly[i] + 10;
             if (g_screen.line_L[i][0])
                 r.draw_text(106, ly_top, g_screen.line_L[i], Color::FMC_BLUE, true);
@@ -278,6 +292,24 @@ void fmc_draw_screen(FMCRenderer& r) {
                 r.draw_text_right(526, ly_top, g_screen.line_R[i], Color::FMC_BLUE, true);
             if (g_screen.line_R_val[i][0])
                 r.draw_text_right(526, ly_val, g_screen.line_R_val[i], Color::FMC_WHITE, false);
+        } else if (is_rte_dual) {
+            // RTE输入: 全白色大字(标签+数值)
+            int ly_top = ly[i] - 8, ly_val = ly[i] + 10;
+            if (g_screen.line_L[i][0])
+                r.draw_text(106, ly_top, g_screen.line_L[i], Color::FMC_WHITE, false);
+            if (g_screen.line_L_val[i][0])
+                r.draw_text(106, ly_val, g_screen.line_L_val[i], Color::FMC_WHITE, false);
+            if (g_screen.line_R[i][0])
+                r.draw_text_right(526, ly_top, g_screen.line_R[i], Color::FMC_WHITE, false);
+            if (g_screen.line_R_val[i][0])
+                r.draw_text_right(526, ly_val, g_screen.line_R_val[i], Color::FMC_WHITE, false);
+        } else if (is_rte_legs) {
+            // RTE航段: 全白色, 行0-1=大字标签, 行2-5=大字数值
+            bool is_hdr = (i <= 1);
+            if (g_screen.line_L[i][0])
+                r.draw_text(106, ly[i], g_screen.line_L[i], Color::FMC_WHITE, is_hdr);
+            if (g_screen.line_R[i][0])
+                r.draw_text_right(526, ly[i], g_screen.line_R[i], Color::FMC_WHITE, is_hdr);
         } else {
             // 普通单行
             if (g_screen.line_L[i][0])
@@ -289,8 +321,18 @@ void fmc_draw_screen(FMCRenderer& r) {
 
     // ===== RTE页底部LSK =====
     if (g_screen.current_page == PAGE_RTE) {
-        r.draw_text(106, 392, "<ROUTE MENU", Color::FMC_BLUE, true);
-        r.draw_text_right(526, 392, "ACTIVATE>", Color::FMC_BLUE, true);
+        if (g_route.current_page > 0) {
+            char pg[24];
+            snprintf(pg, 24, "%d/%d", g_route.current_page + 1, g_route.total_pages());
+            if (g_route.can_prev())
+                r.draw_text(106, 392, "<PREV PAGE", Color::FMC_WHITE, false);
+            r.draw_text_center(315, 392, pg, Color::FMC_WHITE, false);
+            if (g_route.can_next())
+                r.draw_text_right(526, 392, "NEXT PAGE>", Color::FMC_WHITE, false);
+        } else {
+            r.draw_text(106, 392, "<ROUTE MENU", Color::FMC_WHITE, false);
+            r.draw_text_right(526, 392, "ACTIVATE>", Color::FMC_WHITE, false);
+        }
     }
 
     // ===== 草稿栏 =====

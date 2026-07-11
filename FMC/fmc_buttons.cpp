@@ -175,48 +175,63 @@ void fmc_on_lsk(FMCButton* btn) {
         }
     }
 
-    // === RTE页面: 机场/航班号输入 ===
+    // === RTE页面: 机场/航班号输入 + 航段管理 ===
     else if (g_screen.current_page == PAGE_RTE) {
-        if (idx == 5 && left)  { g_route.prev_page(); page_draw_rte(&g_screen); }
-        if (idx == 5 && !left) { g_route.next_page(); page_draw_rte(&g_screen); }
         bool route_changed = false;
-        // L1: ORIGIN, R1: DEST, L2: FLT_NO
-        if (idx == 0 && left && g_screen.scratchpad[0]) {
-            // 校验机场是否在AVL树中
+
+        // -- 翻页 (L6/R6) --
+        if (idx == 5 && left) {
+            if (g_route.can_prev()) { g_route.prev_page(); page_draw_rte(&g_screen); }
+            else { snprintf(g_screen.scratchpad, 32, "FIRST PAGE"); }
+        }
+        if (idx == 5 && !left) {
+            if (g_route.can_next()) { g_route.next_page(); page_draw_rte(&g_screen); }
+            else { snprintf(g_screen.scratchpad, 32, "LAST PAGE"); }
+        }
+
+        // -- 航路点输入 (L5=VIA行, 仅输入模式) --
+        if (idx == 4 && left && g_screen.scratchpad[0] && g_route.current_page == 0) {
             AVLNode* found = g_waypoint_tree.search(g_screen.scratchpad);
-            if (found && found->wpt.type == 'A') {
-                strncpy(g_screen.origin, g_screen.scratchpad, 7);
+            if (found && (found->wpt.type == 'F' || found->wpt.type == 'V')) {
+                g_route.append_leg(g_screen.scratchpad, found->wpt.lat, found->wpt.lon);
                 g_screen.clear_scratchpad();
                 route_changed = true;
+                g_route.current_page = g_route.total_pages() - 1;
             } else {
                 snprintf(g_screen.scratchpad, 32, "NOT IN DB");
             }
         }
-        if (idx == 0 && !left && g_screen.scratchpad[0]) {
-            AVLNode* found = g_waypoint_tree.search(g_screen.scratchpad);
-            if (found && found->wpt.type == 'A') {
-                strncpy(g_screen.dest, g_screen.scratchpad, 7);
-                g_screen.clear_scratchpad();
-                route_changed = true;
-            } else {
-                snprintf(g_screen.scratchpad, 32, "NOT IN DB");
+
+        // -- L1=ORIGIN, R1=DEST, L3=FLT_NO (仅输入模式 page 0) --
+        if (g_route.current_page == 0) {
+            if (idx == 0 && left && g_screen.scratchpad[0]) {
+                AVLNode* found = g_waypoint_tree.search(g_screen.scratchpad);
+                if (found && found->wpt.type == 'A') {
+                    strncpy(g_screen.origin, g_screen.scratchpad, 7);
+                    g_screen.clear_scratchpad(); route_changed = true;
+                } else { snprintf(g_screen.scratchpad, 32, "NOT IN DB"); }
+            }
+            if (idx == 0 && !left && g_screen.scratchpad[0]) {
+                AVLNode* found = g_waypoint_tree.search(g_screen.scratchpad);
+                if (found && found->wpt.type == 'A') {
+                    strncpy(g_screen.dest, g_screen.scratchpad, 7);
+                    g_screen.clear_scratchpad(); route_changed = true;
+                } else { snprintf(g_screen.scratchpad, 32, "NOT IN DB"); }
+            }
+            if (idx == 2 && left && g_screen.scratchpad[0]) {
+                strncpy(g_screen.flt_no, g_screen.scratchpad, 15);
+                g_screen.clear_scratchpad(); route_changed = true;
             }
         }
-        if (idx == 1 && left && g_screen.scratchpad[0]) {
-            strncpy(g_screen.flt_no, g_screen.scratchpad, 15);
-            g_screen.clear_scratchpad();
-            route_changed = true;
-        }
-        // 每次修改后检查: ORIGIN+DEST+FLT_NO 是否全部填写
+
+        // 每次修改后检查
         if (route_changed) {
             g_screen.route_ready = (g_screen.origin[0] && g_screen.dest[0] && g_screen.flt_no[0]);
             g_screen.exec_light = g_screen.route_ready;
             fmc_exec_light = g_screen.exec_light;
         }
-        // 其他LSK: 通用处理
-        if (idx < 4 && !(idx == 0 || idx == 1)) g_screen.lsk_press(idx, left);
+
         page_draw_rte(&g_screen);
-        // 航路变更后同步到共享内存 (ND联动)
         if (route_changed) fmc_route_sync_call();
     } else {
         g_screen.lsk_press(idx, left);
@@ -234,7 +249,8 @@ void fmc_on_func_key(FMCButton* btn) {
     // PREV PAGE / NEXT PAGE: 在航路相关页面翻页
     if (btn->key == FMC_KEY_PREV_PAGE &&
         (g_screen.current_page == PAGE_RTE || g_screen.current_page == PAGE_LEGS)) {
-        g_route.prev_page();
+        if (g_route.can_prev()) g_route.prev_page();
+        else snprintf(g_screen.scratchpad, 32, "FIRST PAGE");
         if (g_screen.current_page == PAGE_RTE) page_draw_rte(&g_screen);
         else page_draw_legs(&g_screen);
         snprintf(fmc_title, 32, "%s", g_pages[g_screen.current_page].title);
@@ -244,7 +260,8 @@ void fmc_on_func_key(FMCButton* btn) {
     }
     if (btn->key == FMC_KEY_NEXT_PAGE &&
         (g_screen.current_page == PAGE_RTE || g_screen.current_page == PAGE_LEGS)) {
-        g_route.next_page();
+        if (g_route.can_next()) g_route.next_page();
+        else snprintf(g_screen.scratchpad, 32, "LAST PAGE");
         if (g_screen.current_page == PAGE_RTE) page_draw_rte(&g_screen);
         else page_draw_legs(&g_screen);
         snprintf(fmc_title, 32, "%s", g_pages[g_screen.current_page].title);
