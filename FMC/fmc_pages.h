@@ -44,6 +44,9 @@ struct FMCScreen {
     // 6行×2列 显示内容
     char line_L[6][24];
     char line_R[6][24];
+    // STATUS双行: 标签下方的大字数值
+    char line_L_val[6][24];
+    char line_R_val[6][24];
 
     // 草稿栏
     char scratchpad[32];
@@ -84,6 +87,8 @@ struct FMCScreen {
     void clear_all() {
         memset(line_L, 0, sizeof(line_L));
         memset(line_R, 0, sizeof(line_R));
+        memset(line_L_val, 0, sizeof(line_L_val));
+        memset(line_R_val, 0, sizeof(line_R_val));
         memset(scratchpad, 0, sizeof(scratchpad));
         memset(origin, 0, sizeof(origin));
         memset(dest, 0, sizeof(dest));
@@ -119,6 +124,8 @@ struct FMCScreen {
     void clear_lines() {
         memset(line_L, 0, sizeof(line_L));
         memset(line_R, 0, sizeof(line_R));
+        memset(line_L_val, 0, sizeof(line_L_val));
+        memset(line_R_val, 0, sizeof(line_R_val));
     }
 
     void set_line_L(int row, const char* text) {
@@ -126,6 +133,12 @@ struct FMCScreen {
     }
     void set_line_R(int row, const char* text) {
         if (row>=0 && row<6) strncpy(line_R[row], text, 23);
+    }
+    void set_line_L_val(int row, const char* text) {
+        if (row>=0 && row<6) strncpy(line_L_val[row], text, 23);
+    }
+    void set_line_R_val(int row, const char* text) {
+        if (row>=0 && row<6) strncpy(line_R_val[row], text, 23);
     }
 
     // LSK: scratchpad → line, or line → scratchpad

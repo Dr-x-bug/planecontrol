@@ -17,6 +17,7 @@ namespace Color {
     constexpr SDL_Color FMC_WHITE   = {255, 255, 255, 255};
     constexpr SDL_Color FMC_GREEN   = {  0, 255,   0, 255};
     constexpr SDL_Color FMC_CYAN    = {  0, 220, 220, 255};
+    constexpr SDL_Color FMC_BLUE    = { 80, 160, 255, 255};
     constexpr SDL_Color FMC_AMBER   = {255, 180,   0, 255};
     constexpr SDL_Color FMC_MAGENTA = {255,   0, 255, 255};
 }

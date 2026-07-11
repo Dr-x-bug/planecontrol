@@ -62,12 +62,14 @@ void page_draw_init_ref(FMCScreen* scr) {
         scr->set_line_L(4, "<TAKEOFF");     scr->set_line_R(4, "");
         scr->set_line_L(5, "<APPROACH");    scr->set_line_R(5, "");
     } else {
-        // IDENT/STATUS 状态页: 导航数据库信息 (与真实FMC一致)
-        scr->set_line_L(0, "NAV DATA");           scr->set_line_R(0, "WORLD (XPLANE)");
-        scr->set_line_L(1, "ACTIVATE DATABASE");  scr->set_line_R(1, "01FEB18 01MAR18");
-        scr->set_line_L(2, "SEC DATABASE");       scr->set_line_R(2, "NOT AVAIL");
-        scr->set_line_L(3, "UTC 18:35");          scr->set_line_R(3, "DATE 22MAR25");
-        scr->set_line_L(4, "PROGRAM");            scr->set_line_R(4, "X-PLANE 11.55r2");
+        // IDENT/STATUS 状态页: 蓝色标签(上) + 白色数值(下)
+        // 除UTC/DATE左右分列外, 其余均为左侧堆叠
+        scr->set_line_L(0, "NAV DATA");           scr->set_line_L_val(0, "WORLD (XPLANE)");
+        scr->set_line_L(1, "ACTIVATE DATABASE");  scr->set_line_L_val(1, "01FEB18 01MAR18");
+        scr->set_line_L(2, "SEC DATABASE");       scr->set_line_L_val(2, "NOT AVAIL");
+        scr->set_line_L(3, "UTC");                scr->set_line_L_val(3, "18:35");
+        scr->set_line_R(3, "DATE");               scr->set_line_R_val(3, "22MAR25");
+        scr->set_line_L(4, "PROGRAM");            scr->set_line_L_val(4, "X-PLANE 11.55r2");
         scr->set_line_L(5, "<INDEX");             scr->set_line_R(5, "DATABASE>");
     }
 }
@@ -283,17 +285,34 @@ void fmc_draw_screen(FMCRenderer& r) {
     r.draw_text_center(315, 90, g_pages[g_screen.current_page].title, Color::FMC_CYAN, false);
 
     // 6行文字, 与LSK按钮对齐
+    // STATUS页: 蓝色小字标签(上) + 白色大字数值(下)
     // INDEX主页: 白色大字; 其他页: 青绿色小字
-    bool is_index = (g_screen.current_page == PAGE_INDEX);
+    bool is_status = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1);
+    bool is_index  = (g_screen.current_page == PAGE_INDEX);
     SDL_Color line_c = is_index ? Color::FMC_WHITE : Color::FMC_CYAN;
     bool line_sm    = is_index ? false : true;
 
     int ly[6] = {128, 176, 224, 272, 320, 368};
     for (int i = 0; i < 6; i++) {
-        if (g_screen.line_L[i][0])
-            r.draw_text(106, ly[i], g_screen.line_L[i], line_c, line_sm);
-        if (g_screen.line_R[i][0])
-            r.draw_text_right(526, ly[i], g_screen.line_R[i], line_c, line_sm);
+        if (is_status) {
+            // STATUS 双行: 标签居中偏上, 值在下方
+            int ly_top = ly[i] - 6;   // 标签行 (蓝色小字)
+            int ly_val = ly[i] + 12;  // 数值行 (白色大字)
+            if (g_screen.line_L[i][0])
+                r.draw_text(106, ly_top, g_screen.line_L[i], Color::FMC_BLUE, true);
+            if (g_screen.line_L_val[i][0])
+                r.draw_text(106, ly_val, g_screen.line_L_val[i], Color::FMC_WHITE, false);
+            if (g_screen.line_R[i][0])
+                r.draw_text_right(526, ly_top, g_screen.line_R[i], Color::FMC_BLUE, true);
+            if (g_screen.line_R_val[i][0])
+                r.draw_text_right(526, ly_val, g_screen.line_R_val[i], Color::FMC_WHITE, false);
+        } else {
+            // 普通单行
+            if (g_screen.line_L[i][0])
+                r.draw_text(106, ly[i], g_screen.line_L[i], line_c, line_sm);
+            if (g_screen.line_R[i][0])
+                r.draw_text_right(526, ly[i], g_screen.line_R[i], line_c, line_sm);
+        }
     }
 
     // ===== 草稿栏 (青绿色, 各居屏幕两端) =====
