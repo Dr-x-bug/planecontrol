@@ -53,12 +53,91 @@ extern char fmc_title[32];
 extern char fmc_scratchpad[32];
 extern bool fmc_exec_light;
 
+// 分组回调 (内部使用)
 void fmc_on_lsk(FMCButton* btn);
 void fmc_on_func_key(FMCButton* btn);
 void fmc_on_letter(FMCButton* btn);
 void fmc_on_number(FMCButton* btn);
 void fmc_on_edit(FMCButton* btn);
 void fmc_on_exec(FMCButton* btn);
+
+// === 独立回调函数 (每个按键一个) ===
+// 屏幕左右选择键 L1-L6
+void fmc_handle_screen_l1(FMCButton* btn);
+void fmc_handle_screen_l2(FMCButton* btn);
+void fmc_handle_screen_l3(FMCButton* btn);
+void fmc_handle_screen_l4(FMCButton* btn);
+void fmc_handle_screen_l5(FMCButton* btn);
+void fmc_handle_screen_l6(FMCButton* btn);
+// 屏幕左右选择键 R1-R6
+void fmc_handle_screen_r1(FMCButton* btn);
+void fmc_handle_screen_r2(FMCButton* btn);
+void fmc_handle_screen_r3(FMCButton* btn);
+void fmc_handle_screen_r4(FMCButton* btn);
+void fmc_handle_screen_r5(FMCButton* btn);
+void fmc_handle_screen_r6(FMCButton* btn);
+// 功能按键
+void fmc_handle_init_ref(FMCButton* btn);
+void fmc_handle_rte(FMCButton* btn);
+void fmc_handle_clb(FMCButton* btn);
+void fmc_handle_crz(FMCButton* btn);
+void fmc_handle_des(FMCButton* btn);
+void fmc_handle_dir_intc(FMCButton* btn);
+void fmc_handle_legs(FMCButton* btn);
+void fmc_handle_dep_arr(FMCButton* btn);
+void fmc_handle_hold(FMCButton* btn);
+void fmc_handle_prog(FMCButton* btn);
+void fmc_handle_fix(FMCButton* btn);
+void fmc_handle_nav_rad(FMCButton* btn);
+void fmc_handle_prev_page(FMCButton* btn);
+void fmc_handle_next_page(FMCButton* btn);
+// 字母按键 A-Z
+void fmc_handle_a(FMCButton* btn);
+void fmc_handle_b(FMCButton* btn);
+void fmc_handle_c(FMCButton* btn);
+void fmc_handle_d(FMCButton* btn);
+void fmc_handle_e(FMCButton* btn);
+void fmc_handle_f(FMCButton* btn);
+void fmc_handle_g(FMCButton* btn);
+void fmc_handle_h(FMCButton* btn);
+void fmc_handle_i(FMCButton* btn);
+void fmc_handle_j(FMCButton* btn);
+void fmc_handle_k(FMCButton* btn);
+void fmc_handle_l(FMCButton* btn);
+void fmc_handle_m(FMCButton* btn);
+void fmc_handle_n(FMCButton* btn);
+void fmc_handle_o(FMCButton* btn);
+void fmc_handle_p(FMCButton* btn);
+void fmc_handle_q(FMCButton* btn);
+void fmc_handle_r(FMCButton* btn);
+void fmc_handle_s(FMCButton* btn);
+void fmc_handle_t(FMCButton* btn);
+void fmc_handle_u(FMCButton* btn);
+void fmc_handle_v(FMCButton* btn);
+void fmc_handle_w(FMCButton* btn);
+void fmc_handle_x(FMCButton* btn);
+void fmc_handle_y(FMCButton* btn);
+void fmc_handle_z(FMCButton* btn);
+// 数字/符号按键
+void fmc_handle_1(FMCButton* btn);
+void fmc_handle_2(FMCButton* btn);
+void fmc_handle_3(FMCButton* btn);
+void fmc_handle_4(FMCButton* btn);
+void fmc_handle_5(FMCButton* btn);
+void fmc_handle_6(FMCButton* btn);
+void fmc_handle_7(FMCButton* btn);
+void fmc_handle_8(FMCButton* btn);
+void fmc_handle_9(FMCButton* btn);
+void fmc_handle_0(FMCButton* btn);
+void fmc_handle_dot(FMCButton* btn);
+void fmc_handle_plus_minus(FMCButton* btn);
+// 编辑按键
+void fmc_handle_sp(FMCButton* btn);
+void fmc_handle_del(FMCButton* btn);
+void fmc_handle_slash(FMCButton* btn);
+void fmc_handle_clr(FMCButton* btn);
+// 执行按键
+void fmc_handle_exec(FMCButton* btn);
 
 inline int fmc_hit_test(int mx, int my, float scale, int ww, int wh) {
     int dw=(int)(FMC_BASE_W*scale), dh=(int)(FMC_BASE_H*scale);
