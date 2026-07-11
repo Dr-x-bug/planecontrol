@@ -78,11 +78,9 @@ struct FMCScreen {
     char crz_wind[16];      // 巡航风
 
     // DES参数
-    char des_spd[8];       // 下降速度
-    char des_spd_rest[16]; // 速度限制
-    char des_alt_rest[8];  // 高度限制
-    char des_rate[8];      // 下降率
-    char des_trans_lvl[8]; // 过渡高度层
+    char des_tgt_spd[8];   // TGT SPEED (747/.290)
+    char des_trans_fl[8];  // TRANS FL (FL300)
+    char des_vpa[8];       // VPA (2.5°)
 
     FMCScreen() : current_page(PAGE_INDEX), need_redraw(true), exec_light(false), route_ready(false) { clear_all(); }
 
@@ -108,11 +106,9 @@ struct FMCScreen {
         memset(crz_max_alt, 0, sizeof(crz_max_alt));
         memset(crz_step, 0, sizeof(crz_step));
         memset(crz_wind, 0, sizeof(crz_wind));
-        memset(des_spd, 0, sizeof(des_spd));
-        memset(des_spd_rest, 0, sizeof(des_spd_rest));
-        memset(des_alt_rest, 0, sizeof(des_alt_rest));
-        memset(des_rate, 0, sizeof(des_rate));
-        memset(des_trans_lvl, 0, sizeof(des_trans_lvl));
+        memset(des_tgt_spd, 0, sizeof(des_tgt_spd));
+        memset(des_trans_fl, 0, sizeof(des_trans_fl));
+        memset(des_vpa, 0, sizeof(des_vpa));
 
         // 默认值 (Boeing 737 典型值)
         strcpy(crz_alt, "FL350"); strcpy(cost_idx, "80");
@@ -122,8 +118,9 @@ struct FMCScreen {
         strcpy(crz_tgt_spd, "300/.74");
         strcpy(crz_turb_n1, "AUTO"); strcpy(crz_opt_alt, "FL345");
         strcpy(crz_max_alt, "FL390"); strcpy(crz_step, "FL370");
-        strcpy(des_spd, "280");   strcpy(des_spd_rest, "240/10000");
-        strcpy(des_trans_lvl, "FL180");
+        strcpy(des_tgt_spd, "747/.290");
+        strcpy(des_trans_fl, "FL300");
+        strcpy(des_vpa, "2.5");
     }
 
     void clear_lines() {

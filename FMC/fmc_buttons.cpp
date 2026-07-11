@@ -395,13 +395,27 @@ void fmc_on_exec(FMCButton* btn) {
             // CRZ ALT
             if (valid_alt(val)) strncpy(g_screen.crz_alt, val, 7);
         } else if (pg == PAGE_DES) {
-            int row = -1;
-            for (int i=0;i<6;i++) if (g_screen.line_L[i][0] && g_screen.scratchpad[0]) row=i;
-            if (row==0 && valid_spd(val)) strncpy(g_screen.des_spd, val, 7);
-            if (row==1) strncpy(g_screen.des_spd_rest, val, 15);
-            if (row==2 && valid_alt(val)) strncpy(g_screen.des_alt_rest, val, 7);
-            if (row==3) strncpy(g_screen.des_rate, val, 7);
-            if (row==4 && valid_alt(val)) strncpy(g_screen.des_trans_lvl, val, 7);
+            // TGT SPEED
+            if (val[0] == '/' && val[1] == '.') {
+                float m = atof(val + 1);
+                if (m >= 0.40f && m <= 0.95f) {
+                    char buf[8]; snprintf(buf, 8, "747/%.2f", m);
+                    strncpy(g_screen.des_tgt_spd, buf, 7);
+                }
+            } else if (atoi(val) >= 100 && atoi(val) <= 399) {
+                const char* slash = strchr(g_screen.des_tgt_spd, '/');
+                char buf[8];
+                snprintf(buf, 8, "%d%s", atoi(val), slash ? slash : "/.290");
+                strncpy(g_screen.des_tgt_spd, buf, 7);
+            }
+            // TRANS FL (FL290 = 29000ft)
+            if (val[0]=='F'&&val[1]=='L') { int a=atoi(val+2); if(a>=50&&a<=410) strncpy(g_screen.des_trans_fl, val, 7); }
+            else if (atoi(val) >= 1000) { snprintf(g_screen.des_trans_fl, 8, "FL%d", atoi(val)/100); }
+            // SPD/ALT LIMIT: 同步到CLB
+            if (strchr(val, '/')) strncpy(g_screen.clb_spd_rest, val, 15);
+            // VPA (0.5~6.0°)
+            float v = atof(val);
+            if (v >= 0.5f && v <= 6.0f) { snprintf(g_screen.des_vpa, 8, "%.1f", v); strcat(g_screen.des_vpa, "\xb0"); }
         } else if (pg == PAGE_RTE) {
             // 原有RTE逻辑
             for (int i=0;i<6;i++) {

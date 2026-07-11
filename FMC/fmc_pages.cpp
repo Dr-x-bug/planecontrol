@@ -119,12 +119,11 @@ void page_draw_crz(FMCScreen* scr) {
 
 void page_draw_des(FMCScreen* scr) {
     scr->clear_lines();
-    scr->set_line_L(0, "ACT VNAV DESCENT");             scr->set_line_R(0, "3/3");
-    scr->set_line_L(1, "DES SPD");    scr->set_line_R(1, scr->des_spd);
-    scr->set_line_L(2, "SPD RESTR");  scr->set_line_R(2, scr->des_spd_rest);
-    scr->set_line_L(3, "ALT RESTR");  scr->set_line_R(3, scr->des_alt_rest[0]?scr->des_alt_rest:"-----");
-    scr->set_line_L(4, "TRANS LVL");  scr->set_line_R(4, scr->des_trans_lvl);
-    scr->set_line_L(5, "DECEL");      scr->set_line_R(5, "10NM");
+    scr->set_line_L(0, "VNAV DESCENT");               scr->set_line_R(0, "3/3");
+    scr->set_line_L(2, "TGT SPEED");  scr->set_line_L_val(2, scr->des_tgt_spd);
+    scr->set_line_R(2, "TRANS FL");   scr->set_line_R_val(2, scr->des_trans_fl);
+    scr->set_line_L(4, "SPD/ALT LIMIT"); scr->set_line_L_val(4, scr->clb_spd_rest);
+    scr->set_line_L(5, "VPA");        scr->set_line_R_val(5, scr->des_vpa);
 }
 
 void page_draw_dep_arr(FMCScreen* scr) {
@@ -269,7 +268,8 @@ void fmc_draw_screen(FMCRenderer& r) {
     // 双行: STATUS(蓝标签+白值) 或 RTE输入(全白大字)
     bool is_dual     = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1)
                      || (g_screen.current_page == PAGE_CLB)
-                     || (g_screen.current_page == PAGE_CRZ);
+                     || (g_screen.current_page == PAGE_CRZ)
+                     || (g_screen.current_page == PAGE_DES);
     bool is_rte_dual = (g_screen.current_page == PAGE_RTE && g_route.current_page == 0);
     bool is_rte_legs = (g_screen.current_page == PAGE_RTE && g_route.current_page > 0);
     bool is_index  = (g_screen.current_page == PAGE_INDEX);
