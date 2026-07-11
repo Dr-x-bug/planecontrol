@@ -32,8 +32,8 @@ void fmc_switch_page(FMCPage page) {
 // INIT/REF 子页面状态: 0=主页, 1=IDENT状态页
 int g_init_subpage = 0;
 
-// DEP/ARR 模式: 'D'=离场, 'A'=进场
-char g_deparr_mode = 'D';
+// DEP/ARR 模式: 0=INDEX首页, 'D'=离场, 'A'=进场
+char g_deparr_mode = 0;
 
 // ===== INDEX 主页 (默认首页, 与真实FMC面板一致) =====
 void page_draw_index(FMCScreen* scr) {
@@ -129,84 +129,54 @@ void page_draw_des(FMCScreen* scr) {
 void page_draw_dep_arr(FMCScreen* scr) {
     scr->clear_lines();
 
-    if (g_deparr_mode == 'D') {
-        // === 离场 (DEP KSEA) ===
-        scr->set_line_L(0, "<DEP");          scr->set_line_R(0, "ARR>");
-        if (g_deparr.dep_step == 0) {
-            scr->set_line_L(1, "ORIGIN");    scr->set_line_R(1, "KSEA");
-            scr->set_line_L(2, "RWY");
-            scr->set_line_L(3, " 16L");      scr->set_line_R(3, "34L");
-            scr->set_line_L(4, " 16C");      scr->set_line_R(4, "34C");
-            scr->set_line_L(5, " 16R");      scr->set_line_R(5, "34R");
-        } else if (g_deparr.dep_step == 1) {
-            scr->set_line_L(0, "<DEP");      scr->set_line_R(0, "KSEA>");
-            scr->set_line_L(1, "RWY");       scr->set_line_R(1, g_deparr.dep_rwy);
-            scr->set_line_L(2, "SID");       scr->set_line_R(2, g_deparr.dep_sid[0]?g_deparr.dep_sid:"----");
-            int cnt=0;
-            for (int i=0;i<ksea_sid_count&&cnt<3;i++) {
-                bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
-                if (m) {
-                    if (cnt==0) scr->set_line_L(3,ksea_sids[i].name);
-                    else if(cnt==1) scr->set_line_L(4,ksea_sids[i].name);
-                    else scr->set_line_L(5,ksea_sids[i].name);
-                    cnt++;
-                }
-            }
+    if (g_deparr_mode == 0) {
+        // === INDEX: 三列布局 ===
+        scr->set_line_L(0, "DEP/ADDR INDEX");       scr->set_line_R(0, "ACT FPLN");
+        scr->set_line_L(1, "<DEP");
+        scr->set_line_L_val(1, scr->origin[0] ? scr->origin : "KSEA");
+        scr->set_line_R(1, "ARR>");
+        scr->set_line_L(2, "");
+        scr->set_line_L_val(2, scr->dest[0] ? scr->dest : "KBFI");
+        scr->set_line_R(2, "ARR>");
+    } else if (g_deparr_mode == 'D') {
+        // === DEPART ===
+        scr->set_line_L(0, "KSEA DEPART");           scr->set_line_R(0, "1/1");
+        scr->set_line_L_val(0, "ACT FPLN");
+        scr->set_line_L(1, "SIDE");                   scr->set_line_R(1, "RWYS");
+        bool has_sel = (g_deparr.dep_sid[0] && g_deparr.dep_rwy[0]);
+        if (!has_sel) {
+            // 未选: 显示全部
+            int c=0;
+            for (int i=0;i<ksea_sid_count&&c<3;i++)
+                { scr->set_line_L(2+c, ksea_sids[i].name); c++; }
+            const char* rwys[]={"RW16C","RW16L","RW16R"};
+            for (int i=0;i<3;i++) scr->set_line_R(2+i, rwys[i]);
         } else {
-            scr->set_line_L(1, "RWY");       scr->set_line_R(1, g_deparr.dep_rwy);
-            scr->set_line_L(2, "SID");       scr->set_line_R(2, g_deparr.dep_sid);
-            scr->set_line_L(3, "TRANS");     scr->set_line_R(3, g_deparr.dep_trans[0]?g_deparr.dep_trans:"----");
-            for (int i=0;i<ksea_sid_count;i++) {
-                bool ok=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
-                if (ok&&strcmp(ksea_sids[i].name,g_deparr.dep_sid)==0) {
-                    for (int j=0;j<ksea_sids[i].trans_count&&j<2;j++) {
-                        if (j==0) scr->set_line_L(4,ksea_sids[i].transitions[j]);
-                        else scr->set_line_L(5,ksea_sids[i].transitions[j]);
-                    }
-                    break;
-                }
-            }
+            // 已选: 只显示选中项+TRANS
+            char b[32];
+            snprintf(b,32,"%s <SEL>",g_deparr.dep_sid); scr->set_line_L(2,b);
+            scr->set_line_L(3,"TRANS"); scr->set_line_L(4,g_deparr.dep_trans[0]?g_deparr.dep_trans:"-----");
+            snprintf(b,32,"%s <SEL>",g_deparr.dep_rwy); scr->set_line_R(2,b);
+            scr->set_line_R(3,"TRANS"); scr->set_line_R(4,g_deparr.dep_trans[0]?g_deparr.dep_trans:"-----");
         }
     } else {
-        // === 进场 (ARR KBFI) ===
-        scr->set_line_L(0, "DEP>");          scr->set_line_R(0, "<ARR");
-        if (g_deparr.arr_step == 0) {
-            scr->set_line_L(1, "DEST");      scr->set_line_R(1, "KBFI");
-            scr->set_line_L(2, "RWY");
-            scr->set_line_L(3, " 13L");      scr->set_line_R(3, "31L");
-            scr->set_line_L(4, " 13R");      scr->set_line_R(4, "31R");
-            scr->set_line_L(5, "");          scr->set_line_R(5, "");
-        } else if (g_deparr.arr_step == 1) {
-            scr->set_line_L(0, "KBFI>");     scr->set_line_R(0, "<ARR");
-            scr->set_line_L(1, "RWY");       scr->set_line_R(1, g_deparr.arr_rwy);
-            scr->set_line_L(2, "STAR");      scr->set_line_R(2, g_deparr.arr_star[0]?g_deparr.arr_star:"----");
-            int cnt=0;
-            for (int i=0;i<kbfi_star_count&&cnt<3;i++) {
-                if (kbfi_stars[i].type=='T') {
-                    bool m=(kbfi_stars[i].runway[0]==0||strcmp(kbfi_stars[i].runway,g_deparr.arr_rwy)==0);
-                    if (m) {
-                        if (cnt==0) scr->set_line_L(3,kbfi_stars[i].name);
-                        else if(cnt==1) scr->set_line_L(4,kbfi_stars[i].name);
-                        else scr->set_line_L(5,kbfi_stars[i].name);
-                        cnt++;
-                    }
-                }
+        // === ARRIVAL ===
+        scr->set_line_L(0, "KSEA ARRIVAL");          scr->set_line_R(0, "1/1");
+        scr->set_line_L_val(0, "ACT FPLN");
+        scr->set_line_L(1, "STARS");                  scr->set_line_R(1, "APPR");
+        bool has_arr = (g_deparr.arr_star[0] && g_deparr.arr_appr[0]);
+        if (!has_arr) {
+            int sc=0,ac=0;
+            for(int i=0;i<kbfi_star_count;i++){
+                if(kbfi_stars[i].type=='T'&&sc<2){scr->set_line_L(2+sc,kbfi_stars[i].name);sc++;}
+                if(kbfi_stars[i].type=='A'&&ac<2){scr->set_line_R(2+ac,kbfi_stars[i].name);ac++;}
             }
         } else {
-            scr->set_line_L(1, "RWY");       scr->set_line_R(1, g_deparr.arr_rwy);
-            scr->set_line_L(2, "STAR");      scr->set_line_R(2, g_deparr.arr_star);
-            scr->set_line_L(3, "APPR");      scr->set_line_R(3, g_deparr.arr_appr[0]?g_deparr.arr_appr:"----");
-            int cnt=0;
-            for (int i=0;i<kbfi_star_count;i++) {
-                if (kbfi_stars[i].type=='A') {
-                    bool m=(kbfi_stars[i].runway[0]==0||strcmp(kbfi_stars[i].runway,g_deparr.arr_rwy)==0);
-                    if (m && cnt<2) {
-                        if (cnt==0) scr->set_line_L(4,kbfi_stars[i].name);
-                        else scr->set_line_L(5,kbfi_stars[i].name);
-                        cnt++;
-                    }
-                }
-            }
+            char b[32];
+            snprintf(b,32,"%s <SEL>",g_deparr.arr_star); scr->set_line_L(2,b);
+            scr->set_line_L(3,"TRANS"); scr->set_line_L(4,g_deparr.arr_trans[0]?g_deparr.arr_trans:"-----");
+            snprintf(b,32,"%s <SEL>",g_deparr.arr_appr); scr->set_line_R(2,b);
+            scr->set_line_R(3,"TRANS"); scr->set_line_R(4,"XYZ");
         }
     }
 }
@@ -262,8 +232,8 @@ void fmc_draw_screen(FMCRenderer& r) {
 
     // 6行文字, 与LSK按钮对齐
     // STATUS页: 蓝色小字标签(上) + 白色大字数值(下) 同行双行
-    // RTE页:   偶数行蓝色标签, 奇数行白色数值 (交替)
-    // INDEX主页: 白色大字; 其他页: 青绿色小字
+    // DEP/ARR 专用: 双行渲染(青绿标签+白数据) + 虚线分隔
+    bool is_deparr = (g_screen.current_page == PAGE_DEP_ARR);
     // 双行: STATUS 或 RTE输入模式(无航段时)
     // 双行: STATUS(蓝标签+白值) 或 RTE输入(全白大字)
     bool is_dual     = (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1)
@@ -308,6 +278,17 @@ void fmc_draw_screen(FMCRenderer& r) {
                 r.draw_text(106, ly[i], g_screen.line_L[i], Color::FMC_WHITE, is_hdr);
             if (g_screen.line_R[i][0])
                 r.draw_text_right(526, ly[i], g_screen.line_R[i], Color::FMC_WHITE, is_hdr);
+        } else if (is_deparr) {
+            // DEP/ARR: 双行(青绿标签+白数据)
+            int ly_top = ly[i] - 8, ly_val = ly[i] + 10;
+            if (g_screen.line_L[i][0])
+                r.draw_text(106, ly_top, g_screen.line_L[i], Color::FMC_CYAN, true);
+            if (g_screen.line_L_val[i][0])
+                r.draw_text(106, ly_val, g_screen.line_L_val[i], Color::FMC_WHITE, false);
+            if (g_screen.line_R[i][0])
+                r.draw_text_right(526, ly_top, g_screen.line_R[i], Color::FMC_CYAN, true);
+            if (g_screen.line_R_val[i][0])
+                r.draw_text_right(526, ly_val, g_screen.line_R_val[i], Color::FMC_WHITE, false);
         } else {
             // 普通单行
             if (g_screen.line_L[i][0])
@@ -315,6 +296,15 @@ void fmc_draw_screen(FMCRenderer& r) {
             if (g_screen.line_R[i][0])
                 r.draw_text_right(526, ly[i], g_screen.line_R[i], line_c, line_sm);
         }
+    }
+
+    // ===== DEP/ARR: 虚线分隔 + 方括号 =====
+    if (is_deparr) {
+        int dash_y = 385;
+        for (int dx = 110; dx < 520; dx += 12)
+            lineRGBA(r.sdl_rend, r.to_sx(dx), r.to_sy(dash_y), r.to_sx(dx+6), r.to_sy(dash_y), 0, 220, 220, 180);
+        r.draw_text(106, 398, "[", Color::FMC_CYAN, false);
+        r.draw_text_right(526, 398, "]", Color::FMC_CYAN, false);
     }
 
     // ===== RTE页底部LSK =====

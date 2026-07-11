@@ -86,93 +86,53 @@ void fmc_on_lsk(FMCButton* btn) {
         // DATABASE> 暂留当前页 (可扩展为数据库管理)
     }
 
-    // === DEP/ARR 页面特殊处理 ===
+    // === DEP/ARR 页面: INDEX→DEP→ARR ===
     else if (g_screen.current_page == PAGE_DEP_ARR) {
-        // R1: 切换 DEP/ARR 模式
-        if (!left && idx == 0) {
-            g_deparr_mode = (g_deparr_mode == 'D') ? 'A' : 'D';
-            g_deparr.dep_step = 0; g_deparr.arr_step = 0;
-            page_draw_dep_arr(&g_screen);
-        }
-        // L1: 重置当前DEP选择
-        else if (left && idx == 0 && g_deparr_mode == 'D') {
-            g_deparr.dep_step = 0; g_deparr.dep_rwy[0]='\0';
-            g_deparr.dep_sid[0]='\0'; g_deparr.dep_trans[0]='\0';
-            page_draw_dep_arr(&g_screen);
-        }
-        // L1: 重置当前ARR选择
-        else if (left && idx == 0 && g_deparr_mode == 'A') {
-            g_deparr.arr_step = 0; g_deparr.arr_rwy[0]='\0';
-            g_deparr.arr_star[0]='\0'; g_deparr.arr_appr[0]='\0';
-            page_draw_dep_arr(&g_screen);
-        }
-        // === DEP 流程 ===
-        else if (g_deparr_mode == 'D' && g_deparr.dep_step == 0) {
-            const char* rwys_L[] = {"16L","16C","16R"};
-            const char* rwys_R[] = {"34L","34C","34R"};
-            if (left  && idx>=1 && idx<=3) { strncpy(g_deparr.dep_rwy, rwys_L[idx-1],7); g_deparr.dep_step=1; }
-            if (!left && idx>=1 && idx<=3) { strncpy(g_deparr.dep_rwy, rwys_R[idx-1],7); g_deparr.dep_step=1; }
-            page_draw_dep_arr(&g_screen);
-        }
-        else if (g_deparr_mode == 'D' && g_deparr.dep_step == 1) {
+        if (g_deparr_mode == 0) {
+            // INDEX: L1=KSEA DEP, R1=KBFI ARR
+            if (left && idx == 1)  { g_deparr_mode = 'D'; g_deparr.clear(); }
+            if (!left && idx == 1) { g_deparr_mode = 'A'; g_deparr.clear(); }
+        } else if (g_deparr_mode == 'D') {
+            // 未选: 显示全部SID+跑道; 已选: 只显示选中项+TRANS
+            if (!left && idx>=2 && idx<=4) {
+                // 选跑道 (R3-R5)
+                const char* rwys[] = {"RW16C","RW16L","RW16R"};
+                if (!g_deparr.dep_rwy[0] || strcmp(rwys[idx-2], g_deparr.dep_rwy))
+                    strncpy(g_deparr.dep_rwy, rwys[idx-2], 7);
+                else g_deparr.dep_rwy[0] = '\0'; // 取消选择
+                g_deparr.dep_sid[0] = '\0'; g_deparr.dep_trans[0] = '\0';
+            }
             if (left && idx>=2 && idx<=4) {
+                // 选SID (L3-L5)
                 int cnt=0;
                 for (int i=0;i<ksea_sid_count;i++) {
-                    bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
-                    if (m) { if(cnt==idx-2){strncpy(g_deparr.dep_sid,ksea_sids[i].name,15);g_deparr.dep_step=2;break;} cnt++; }
-                }
-            }
-            // SID选定后同步航路到共享内存 (ND联动)
-            if (g_deparr.dep_step == 2) fmc_route_sync_call();
-            page_draw_dep_arr(&g_screen);
-        }
-        else if (g_deparr_mode == 'D' && g_deparr.dep_step == 2) {
-            if (left && idx>=3 && idx<=4) {
-                for (int i=0;i<ksea_sid_count;i++) {
-                    bool m=(ksea_sids[i].runway[0]==0||strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)==0);
-                    if (m&&strcmp(ksea_sids[i].name,g_deparr.dep_sid)==0) {
-                        int ti=idx-3;
-                        if(ti<ksea_sids[i].trans_count)strncpy(g_deparr.dep_trans,ksea_sids[i].transitions[ti],15);
+                    bool m=!g_deparr.dep_rwy[0]||!strcmp(ksea_sids[i].runway,g_deparr.dep_rwy)||ksea_sids[i].runway[0]==0;
+                    if (m && cnt++ == idx-2) {
+                        if (!g_deparr.dep_sid[0] || strcmp(ksea_sids[i].name, g_deparr.dep_sid))
+                            { strncpy(g_deparr.dep_sid, ksea_sids[i].name, 15);
+                              if (ksea_sids[i].trans_count>0) strncpy(g_deparr.dep_trans, ksea_sids[i].transitions[0], 15); }
+                        else g_deparr.dep_sid[0] = '\0';
                         break;
                     }
                 }
             }
-            page_draw_dep_arr(&g_screen);
-        }
-        // === ARR 流程 ===
-        else if (g_deparr_mode == 'A' && g_deparr.arr_step == 0) {
-            const char* rwys_L[] = {"13L","13R"};
-            const char* rwys_R[] = {"31L","31R"};
-            if (left  && idx>=1 && idx<=2) { strncpy(g_deparr.arr_rwy, rwys_L[idx-1],7); g_deparr.arr_step=1; }
-            if (!left && idx>=1 && idx<=2) { strncpy(g_deparr.arr_rwy, rwys_R[idx-1],7); g_deparr.arr_step=1; }
-            page_draw_dep_arr(&g_screen);
-        }
-        else if (g_deparr_mode == 'A' && g_deparr.arr_step == 1) {
-            if (left && idx>=2 && idx<=4) {
+            if (g_deparr.dep_rwy[0] && g_deparr.dep_sid[0])
+                { g_screen.route_ready=true; g_screen.exec_light=true; fmc_exec_light=true; }
+        } else {
+            // ARR: 选STAR(左行2-3)或APPR(右行2-3)
+            if (left && idx>=2 && idx<=3) {
                 int cnt=0;
-                for (int i=0;i<kbfi_star_count;i++) {
-                    if (kbfi_stars[i].type=='T') {
-                        bool m=(kbfi_stars[i].runway[0]==0||strcmp(kbfi_stars[i].runway,g_deparr.arr_rwy)==0);
-                        if (m) { if(cnt==idx-2){strncpy(g_deparr.arr_star,kbfi_stars[i].name,15);g_deparr.arr_step=2;break;} cnt++; }
-                    }
-                }
+                for (int i=0;i<kbfi_star_count;i++)
+                    if (kbfi_stars[i].type=='T'&&cnt++==idx-2) { strncpy(g_deparr.arr_star,kbfi_stars[i].name,15); break; }
             }
-            // STAR选定后同步航路到共享内存 (ND联动)
-            if (g_deparr.arr_step == 2) fmc_route_sync_call();
-            page_draw_dep_arr(&g_screen);
-        }
-        else if (g_deparr_mode == 'A' && g_deparr.arr_step == 2) {
-            if (left && idx>=3 && idx<=4) {
+            if (!left && idx>=2 && idx<=3) {
                 int cnt=0;
-                for (int i=0;i<kbfi_star_count;i++) {
-                    if (kbfi_stars[i].type=='A') {
-                        bool m=(kbfi_stars[i].runway[0]==0||strcmp(kbfi_stars[i].runway,g_deparr.arr_rwy)==0);
-                        if (m&&cnt==idx-3){strncpy(g_deparr.arr_appr,kbfi_stars[i].name,15);break;} cnt++;
-                    }
-                }
+                for (int i=0;i<kbfi_star_count;i++)
+                    if (kbfi_stars[i].type=='A'&&cnt++==idx-2) { strncpy(g_deparr.arr_appr,kbfi_stars[i].name,15); break; }
             }
-            page_draw_dep_arr(&g_screen);
+            if (g_deparr.arr_star[0]||g_deparr.arr_appr[0]) { g_screen.route_ready=true; g_screen.exec_light=true; fmc_exec_light=true; }
         }
+        page_draw_dep_arr(&g_screen);
     }
 
     // === RTE页面: 机场/航班号输入 + 航段管理 ===
