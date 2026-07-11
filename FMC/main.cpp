@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
     g_route_sync_cb = fmc_sync_route_to_shm;
 
     fmc_buttons_init();
-    fmc_switch_page(PAGE_INIT_REF);
+    fmc_switch_page(PAGE_INDEX);
 
     printf("FMC started. Press function keys to switch pages.\n");
 

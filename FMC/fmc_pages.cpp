@@ -7,6 +7,7 @@
 FMCScreen g_screen;
 
 PageDef g_pages[] = {
+    {PAGE_INDEX,    "INDEX",          page_draw_index},
     {PAGE_INIT_REF, "INIT/REF INDEX", page_draw_init_ref},
     {PAGE_RTE,      "RTE",            page_draw_rte},
     {PAGE_CLB,      "CLB",            page_draw_clb},
@@ -34,6 +35,21 @@ int g_init_subpage = 0;
 // DEP/ARR 模式: 'D'=离场, 'A'=进场
 char g_deparr_mode = 'D';
 
+// ===== INDEX 主页 (默认首页, 与真实FMC面板一致) =====
+void page_draw_index(FMCScreen* scr) {
+    scr->clear_lines();
+
+    // L1: <STATUS
+    scr->set_line_L(0, "<STATUS");
+    // R2: ROUTE MENU>
+    scr->set_line_R(1, "ROUTE MENU>");
+    // R3: DATABASE>
+    scr->set_line_R(2, "DATABASE>");
+    // R4: ARR DATE>
+    scr->set_line_R(3, "ARR DATE>");
+    // L5, L6, R5, R6 留空
+}
+
 void page_draw_init_ref(FMCScreen* scr) {
     scr->clear_lines();
 
@@ -46,17 +62,13 @@ void page_draw_init_ref(FMCScreen* scr) {
         scr->set_line_L(4, "<TAKEOFF");     scr->set_line_R(4, "");
         scr->set_line_L(5, "<APPROACH");    scr->set_line_R(5, "");
     } else {
-        // IDENT 状态页: 导航数据信息
-        scr->set_line_L(0, "NAV DATA");     scr->set_line_R(0, "ACTIVE");
-        scr->set_line_L(1, "AIRAC");        scr->set_line_R(1, "2301-JAN01");
-        scr->set_line_L(2, "ACTIVATE DB");  scr->set_line_R(2, "2026-01-01");
-        scr->set_line_L(3, "SEC DATABASE"); scr->set_line_R(3, "-----");
-
-        char buf[24];
-        snprintf(buf, 24, "UTC %s", "1200Z");
-        scr->set_line_L(4, "TIME");         scr->set_line_R(4, buf);
-
-        scr->set_line_L(5, "<INDEX");       scr->set_line_R(5, "POS INIT>");
+        // IDENT/STATUS 状态页: 导航数据库信息 (与真实FMC一致)
+        scr->set_line_L(0, "NAV DATA");           scr->set_line_R(0, "WORLD (XPLANE)");
+        scr->set_line_L(1, "ACTIVATE DATABASE");  scr->set_line_R(1, "01FEB18 01MAR18");
+        scr->set_line_L(2, "SEC DATABASE");       scr->set_line_R(2, "NOT AVAIL");
+        scr->set_line_L(3, "UTC 18:35");          scr->set_line_R(3, "DATE 22MAR25");
+        scr->set_line_L(4, "PROGRAM");            scr->set_line_R(4, "X-PLANE 11.55r2");
+        scr->set_line_L(5, "<INDEX");             scr->set_line_R(5, "DATABASE>");
     }
 }
 
@@ -267,26 +279,28 @@ void fmc_draw_screen(FMCRenderer& r) {
     // LED屏幕深色背景 (居中于LSK按钮之间)
     r.fill_rect(98, 75, 430, 355, {1, 2, 1, 255});
 
-    // 第1行: 页面标题(左) + 页码(右)
-    r.draw_text(106, 94, g_pages[g_screen.current_page].title, Color::FMC_GREEN, true);
-    if (g_route.total_pages() > 0) {
-        char pg[16]; snprintf(pg, 16, "%d/%d", g_route.current_page + 1, g_route.total_pages());
-        r.draw_text_right(528, 94, pg, Color::FMC_GREEN, true);
-    }
+    // 屏幕四角方括号标记 (真实FMC特征)
+    r.draw_text(106, 78, "[", {0, 255, 200, 200}, true);
+    r.draw_text_right(526, 78, "]", {0, 255, 200, 200}, true);
+    r.draw_text(106, 418, "[", {0, 255, 200, 200}, true);
+    r.draw_text_right(526, 418, "]", {0, 255, 200, 200}, true);
 
-    // 6行文字, 与LSK按钮对齐
+    // 第1行: 页面标题(中) — 青绿色大字
+    r.draw_text_center(315, 90, g_pages[g_screen.current_page].title, Color::FMC_CYAN, false);
+
+    // 6行文字, 与LSK按钮对齐 — 青绿色
     int ly[6] = {128, 176, 224, 272, 320, 368};
     for (int i = 0; i < 6; i++) {
         if (g_screen.line_L[i][0])
-            r.draw_text(106, ly[i], g_screen.line_L[i], Color::FMC_GREEN, true);
+            r.draw_text(106, ly[i], g_screen.line_L[i], Color::FMC_CYAN, true);
         if (g_screen.line_R[i][0])
-            r.draw_text_right(528, ly[i], g_screen.line_R[i], Color::FMC_WHITE, false);
+            r.draw_text_right(526, ly[i], g_screen.line_R[i], Color::FMC_CYAN, true);
     }
 
-    // ===== 草稿栏 (青色中括号, 各居屏幕两端) =====
+    // ===== 草稿栏 (青绿色, 各居屏幕两端) =====
     int sy = 400;
     r.draw_text(106, sy, "<", Color::FMC_CYAN, false);
-    r.draw_text_right(528, sy, ">", Color::FMC_CYAN, false);
+    r.draw_text_right(526, sy, ">", Color::FMC_CYAN, false);
     if (g_screen.scratchpad[0])
         r.draw_text(122, sy, g_screen.scratchpad, Color::FMC_CYAN, false);
 

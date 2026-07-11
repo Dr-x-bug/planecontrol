@@ -38,14 +38,52 @@ void fmc_on_lsk(FMCButton* btn) {
         idx = btn->key - FMC_KEY_R1; left = false;
     }
 
+    // === INDEX 主页 LSK 处理 ===
+    if (g_screen.current_page == PAGE_INDEX) {
+        if (left && idx == 0) {
+            // L1 <STATUS → 进入 IDENT 页面 (NAV DATA 状态)
+            fmc_switch_page(PAGE_INIT_REF);
+            g_init_subpage = 1;
+            page_draw_init_ref(&g_screen);
+        }
+        else if (!left && idx == 1) {
+            // R2 ROUTE MENU> → 进入航路页面
+            fmc_switch_page(PAGE_RTE);
+        }
+        else if (!left && idx == 2) {
+            // R3 DATABASE> → 进入 IDENT 页面 (数据库信息)
+            fmc_switch_page(PAGE_INIT_REF);
+            g_init_subpage = 1;
+            page_draw_init_ref(&g_screen);
+        }
+        else if (!left && idx == 3) {
+            // R4 ARR DATE> → 显示到达预测 (PROG 页面)
+            fmc_switch_page(PAGE_PROG);
+        }
+        // 同步全局状态
+        snprintf(fmc_title, 32, "%s", g_pages[g_screen.current_page].title);
+        snprintf(fmc_scratchpad, 32, "%s", g_screen.scratchpad);
+        for (int i=0;i<6;i++) {
+            snprintf(fmc_lines_L[i],24,"%s",g_screen.line_L[i]);
+            snprintf(fmc_lines_R[i],24,"%s",g_screen.line_R[i]);
+        }
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+
     // === INIT/REF 页面: L1 切换 IDENT 子页面 ===
     if (g_screen.current_page == PAGE_INIT_REF && left && idx == 0) {
         g_init_subpage = g_init_subpage ? 0 : 1;
         page_draw_init_ref(&g_screen);
     }
-    else if (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1 && left && idx == 4) {
+    // IDENT/STATUS 子页面: L6 <INDEX 返回 INDEX 主页
+    else if (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1 && left && idx == 5) {
         g_init_subpage = 0;
-        page_draw_init_ref(&g_screen);
+        fmc_switch_page(PAGE_INDEX);
+    }
+    // IDENT/STATUS 子页面: R6 DATABASE>
+    else if (g_screen.current_page == PAGE_INIT_REF && g_init_subpage == 1 && !left && idx == 5) {
+        // DATABASE> 暂留当前页 (可扩展为数据库管理)
     }
 
     // === DEP/ARR 页面特殊处理 ===

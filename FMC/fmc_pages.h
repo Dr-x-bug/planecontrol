@@ -3,7 +3,8 @@
 
 // ===== FMC 页面枚举 =====
 enum FMCPage {
-    PAGE_INIT_REF = 0,
+    PAGE_INDEX = 0,    // INDEX 主页 (默认首页)
+    PAGE_INIT_REF,     // INIT/REF INDEX
     PAGE_RTE,
     PAGE_CLB,
     PAGE_CRZ,
@@ -78,7 +79,7 @@ struct FMCScreen {
     char des_rate[8];      // 下降率
     char des_trans_lvl[8]; // 过渡高度层
 
-    FMCScreen() : current_page(PAGE_INIT_REF), need_redraw(true), exec_light(false) { clear_all(); }
+    FMCScreen() : current_page(PAGE_INDEX), need_redraw(true), exec_light(false) { clear_all(); }
 
     void clear_all() {
         memset(line_L, 0, sizeof(line_L));
@@ -153,6 +154,7 @@ extern FMCScreen g_screen;
 extern PageDef   g_pages[];
 
 // ===== 各页面绘制函数声明 =====
+void page_draw_index(FMCScreen* scr);
 void page_draw_init_ref(FMCScreen* scr);
 void page_draw_rte(FMCScreen* scr);
 void page_draw_clb(FMCScreen* scr);
