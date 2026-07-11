@@ -122,6 +122,8 @@ void fmc_on_lsk(FMCButton* btn) {
                     if (m) { if(cnt==idx-2){strncpy(g_deparr.dep_sid,ksea_sids[i].name,15);g_deparr.dep_step=2;break;} cnt++; }
                 }
             }
+            // SID选定后同步航路到共享内存 (ND联动)
+            if (g_deparr.dep_step == 2) fmc_route_sync_call();
             page_draw_dep_arr(&g_screen);
         }
         else if (g_deparr_mode == 'D' && g_deparr.dep_step == 2) {
@@ -155,6 +157,8 @@ void fmc_on_lsk(FMCButton* btn) {
                     }
                 }
             }
+            // STAR选定后同步航路到共享内存 (ND联动)
+            if (g_deparr.arr_step == 2) fmc_route_sync_call();
             page_draw_dep_arr(&g_screen);
         }
         else if (g_deparr_mode == 'A' && g_deparr.arr_step == 2) {
@@ -175,6 +179,7 @@ void fmc_on_lsk(FMCButton* btn) {
     else if (g_screen.current_page == PAGE_RTE) {
         if (idx == 5 && left)  { g_route.prev_page(); page_draw_rte(&g_screen); }
         if (idx == 5 && !left) { g_route.next_page(); page_draw_rte(&g_screen); }
+        bool route_changed = false;
         // L1: ORIGIN, R1: DEST, L2: FLT_NO
         if (idx == 0 && left && g_screen.scratchpad[0]) {
             // 校验机场是否在AVL树中
@@ -182,6 +187,7 @@ void fmc_on_lsk(FMCButton* btn) {
             if (found && found->wpt.type == 'A') {
                 strncpy(g_screen.origin, g_screen.scratchpad, 7);
                 g_screen.clear_scratchpad();
+                route_changed = true;
             } else {
                 snprintf(g_screen.scratchpad, 32, "NOT IN DB");
             }
@@ -191,6 +197,7 @@ void fmc_on_lsk(FMCButton* btn) {
             if (found && found->wpt.type == 'A') {
                 strncpy(g_screen.dest, g_screen.scratchpad, 7);
                 g_screen.clear_scratchpad();
+                route_changed = true;
             } else {
                 snprintf(g_screen.scratchpad, 32, "NOT IN DB");
             }
@@ -202,6 +209,8 @@ void fmc_on_lsk(FMCButton* btn) {
         // 其他LSK: 通用处理
         if (idx < 4 && !(idx == 0 || idx == 1)) g_screen.lsk_press(idx, left);
         page_draw_rte(&g_screen);
+        // 航路变更后同步到共享内存 (ND联动)
+        if (route_changed) fmc_route_sync_call();
     } else {
         g_screen.lsk_press(idx, left);
     }

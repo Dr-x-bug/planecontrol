@@ -197,7 +197,7 @@ static bool fmc_module_init(FMCRenderer& fmc_renderer) {
 
     // 初始化按钮并切换到初始页面
     fmc_buttons_init();
-    fmc_switch_page(PAGE_INIT_REF);
+    fmc_switch_page(PAGE_INDEX);
     printf("[Cockpit] FMC initialized, page: %s\n",
            g_pages[g_screen.current_page].title);
 
