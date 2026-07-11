@@ -43,6 +43,10 @@ int main(int argc, char* argv[]) {
     FMCRenderer renderer;
     if (!renderer.init()) { printf("FMC init failed!\n"); return 1; }
 
+    // 初始化缩放: 获取实际窗口客户区大小，确保FMC完整显示
+    { int w, h; SDL_GetWindowSize(renderer.window, &w, &h);
+      renderer.update_scale(w, h); }
+
     // 加载导航数据到AVL树 + FMS飞行计划到航道数组
     printf("[FMC] Loading nav data...\n");
     load_navdata_avl("assets/earth_nav.dat", "assets/earth_fix.dat", "assets/apt.dat");

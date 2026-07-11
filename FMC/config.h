@@ -3,8 +3,8 @@
 
 constexpr int FMC_BASE_W      = 638;
 constexpr int FMC_BASE_H      = 998;
-constexpr int WIN_W           = 830;
-constexpr int WIN_H           = 1298;
+constexpr int WIN_W           = 654;
+constexpr int WIN_H           = 1040;
 constexpr int SCREEN_WIDTH    = 500;
 constexpr int SCREEN_HEIGHT   = 24;
 constexpr int FUNCTION_WIDTH  = 68;
