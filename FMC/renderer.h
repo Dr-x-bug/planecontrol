@@ -19,9 +19,9 @@ struct FMCRenderer {
         window = SDL_CreateWindow("FMC", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             WIN_W, WIN_H, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
         sdl_rend = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-        font    = TTF_OpenFont("../assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 16);
-        font_sm = TTF_OpenFont("../assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 13);
-        SDL_Surface* s = IMG_Load("../assets/fmc.png");
+        font    = TTF_OpenFont("assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 16);
+        font_sm = TTF_OpenFont("assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 13);
+        SDL_Surface* s = IMG_Load("assets/fmc.png");
         if (s) { fmc_tex = SDL_CreateTextureFromSurface(sdl_rend, s); SDL_FreeSurface(s); }
         return window && sdl_rend && font && fmc_tex;
     }

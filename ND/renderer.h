@@ -18,8 +18,8 @@ struct NDRenderer {
             ND_WIN_W, ND_WIN_H, SDL_WINDOW_SHOWN);
         sdl_rend = SDL_CreateRenderer(window, -1,
             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-        font    = TTF_OpenFont("../assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 18);
-        font_sm = TTF_OpenFont("../assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 14);
+        font    = TTF_OpenFont("assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 18);
+        font_sm = TTF_OpenFont("assets/ALIBABAPUHUITI-2-45-LIGHT.TTF", 14);
         return window && sdl_rend && font;
     }
 

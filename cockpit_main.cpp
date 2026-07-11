@@ -214,94 +214,6 @@ static bool fmc_module_init(FMCRenderer& fmc_renderer) {
 }
 
 // ============================================================
-// ND 事件处理
-// ============================================================
-static void nd_handle_events(SDL_Window* nd_win) {
-    SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        // 全局事件
-        if (e.type == SDL_QUIT) {
-            g_running = false;
-            return;
-        }
-
-        // ND 窗口专属事件
-        if (e.type == SDL_WINDOWEVENT &&
-            e.window.windowID == SDL_GetWindowID(nd_win)) {
-            if (e.window.event == SDL_WINDOWEVENT_CLOSE) {
-                g_running = false;
-                return;
-            }
-        }
-
-        // ESC 退出
-        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-            g_running = false;
-            return;
-        }
-    }
-}
-
-// ============================================================
-// FMC 事件处理
-// ============================================================
-static void fmc_handle_events(FMCRenderer& fmc_renderer) {
-    SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        // 全局事件
-        if (e.type == SDL_QUIT) {
-            g_running = false;
-            return;
-        }
-        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-            g_running = false;
-            return;
-        }
-
-        // 窗口大小调整
-        if (e.type == SDL_WINDOWEVENT &&
-            e.window.event == SDL_WINDOWEVENT_RESIZED) {
-            int w, h;
-            SDL_GetWindowSize(fmc_renderer.window, &w, &h);
-            fmc_renderer.update_scale(w, h);
-        }
-
-        // 鼠标移动 → 按钮悬停检测
-        if (e.type == SDL_MOUSEMOTION) {
-            int mx = e.motion.x, my = e.motion.y, w, h;
-            SDL_GetWindowSize(fmc_renderer.window, &w, &h);
-            int idx = fmc_hit_test(mx, my, fmc_renderer.scale, w, h);
-            static int hover_idx = -1;
-            if (idx != hover_idx) {
-                fmc_update_hover(idx);
-                hover_idx = idx;
-            }
-        }
-
-        // 鼠标点击 → 按钮按下
-        if (e.type == SDL_MOUSEBUTTONDOWN) {
-            int mx = e.button.x, my = e.button.y, w, h;
-            SDL_GetWindowSize(fmc_renderer.window, &w, &h);
-            int idx = fmc_hit_test(mx, my, fmc_renderer.scale, w, h);
-            if (idx >= 0) {
-                printf("[FMC] Click: %s (page: %s)\n",
-                       fmc_buttons[idx].label,
-                       g_pages[g_screen.current_page].title);
-                fmc_handle_click(idx);
-            }
-        }
-
-        // 键盘输入 → 草稿栏
-        if (e.type == SDL_TEXTINPUT && e.text.text[0] >= 32) {
-            g_screen.type_char(e.text.text[0]);
-        }
-        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_BACKSPACE) {
-            g_screen.backspace();
-        }
-    }
-}
-
-// ============================================================
 // ND 数据更新 (从 X-Plane 线程或文件读取)
 // ============================================================
 static void nd_update_data(Uint32& last_file_update) {
@@ -456,6 +368,9 @@ int main(int argc, char* argv[]) {
         SDL_Quit();
         return 1;
     }
+    // 初始化 FMC 缩放 (修复默认 scale=1.3 导致的边缘溢出)
+    { int w, h; SDL_GetWindowSize(fmc_renderer.window, &w, &h);
+      fmc_renderer.update_scale(w, h); }
 
     printf("\n[Cockpit] All modules initialized. Running...\n");
     printf("[Cockpit] ND window + FMC window — Press ESC or close any window to exit\n\n");
@@ -464,11 +379,54 @@ int main(int argc, char* argv[]) {
     Uint32 last_file_update = 0;
 
     while (g_running) {
-        // === 事件处理 (两个窗口) ===
-        // 注意: SDL_PollEvent 会处理所有窗口的事件
-        nd_handle_events(nd_renderer.window);
-        if (!g_running) break;
-        fmc_handle_events(fmc_renderer);
+        // === 统一事件处理 (单SDL_PollEvent循环, 双窗口) ===
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            // 全局退出
+            if (e.type == SDL_QUIT) { g_running = false; break; }
+            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+                { g_running = false; break; }
+
+            // ND 窗口关闭
+            if (e.type == SDL_WINDOWEVENT &&
+                e.window.event == SDL_WINDOWEVENT_CLOSE &&
+                e.window.windowID == SDL_GetWindowID(nd_renderer.window))
+                { g_running = false; break; }
+
+            // FMC 窗口事件
+            if (e.type == SDL_WINDOWEVENT &&
+                e.window.event == SDL_WINDOWEVENT_RESIZED &&
+                e.window.windowID == SDL_GetWindowID(fmc_renderer.window)) {
+                int w, h; SDL_GetWindowSize(fmc_renderer.window, &w, &h);
+                fmc_renderer.update_scale(w, h);
+            }
+
+            // FMC 鼠标悬停
+            if (e.type == SDL_MOUSEMOTION) {
+                int w, h; SDL_GetWindowSize(fmc_renderer.window, &w, &h);
+                int idx = fmc_hit_test(e.motion.x, e.motion.y, fmc_renderer.scale, w, h);
+                static int hover_idx = -1;
+                if (idx != hover_idx) { fmc_update_hover(idx); hover_idx = idx; }
+            }
+
+            // FMC 鼠标点击
+            if (e.type == SDL_MOUSEBUTTONDOWN) {
+                int w, h; SDL_GetWindowSize(fmc_renderer.window, &w, &h);
+                int idx = fmc_hit_test(e.button.x, e.button.y, fmc_renderer.scale, w, h);
+                if (idx >= 0) {
+                    printf("[FMC] Click: %s (page: %s)\n",
+                           fmc_buttons[idx].label,
+                           g_pages[g_screen.current_page].title);
+                    fmc_handle_click(idx);
+                }
+            }
+
+            // FMC 键盘输入
+            if (e.type == SDL_TEXTINPUT && e.text.text[0] >= 32)
+                g_screen.type_char(e.text.text[0]);
+            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_BACKSPACE)
+                g_screen.backspace();
+        }
         if (!g_running) break;
 
         // === 数据更新 ===
