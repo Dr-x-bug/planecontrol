@@ -279,12 +279,6 @@ void fmc_draw_screen(FMCRenderer& r) {
     // LED屏幕深色背景 (居中于LSK按钮之间)
     r.fill_rect(98, 75, 430, 355, {1, 2, 1, 255});
 
-    // 屏幕四角方括号标记 (真实FMC特征)
-    r.draw_text(106, 78, "[", {0, 255, 200, 200}, true);
-    r.draw_text_right(526, 78, "]", {0, 255, 200, 200}, true);
-    r.draw_text(106, 418, "[", {0, 255, 200, 200}, true);
-    r.draw_text_right(526, 418, "]", {0, 255, 200, 200}, true);
-
     // 第1行: 页面标题(中) — 青绿色大字
     r.draw_text_center(315, 90, g_pages[g_screen.current_page].title, Color::FMC_CYAN, false);
 
