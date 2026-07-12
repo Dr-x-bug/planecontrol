@@ -32,8 +32,7 @@ void fmc_switch_page(FMCPage page) {
 // INIT/REF 子页面状态: 0=主页, 1=IDENT状态页
 int g_init_subpage = 0;
 
-// DEP/ARR 模式: 0=INDEX首页, 'D'=离场, 'A'=进场
-char g_deparr_mode = 0;
+// DEP/ARR 模式: 0=INDEX首页, 'D'=离场, 'A'=进场 (定义在 fmc_deparr.cpp)
 
 // ===== INDEX 主页 (默认首页, 与真实FMC面板一致) =====
 void page_draw_index(FMCScreen* scr) {
@@ -130,53 +129,89 @@ void page_draw_dep_arr(FMCScreen* scr) {
     scr->clear_lines();
 
     if (g_deparr_mode == 0) {
-        // === INDEX: 三列布局 ===
-        scr->set_line_L(0, "DEP/ADDR INDEX");       scr->set_line_R(0, "ACT FPLN");
+        // === INDEX: DEP/ARR 入口页 ===
+        scr->set_line_L(0, "DEP/ARR INDEX");          scr->set_line_R(0, "ACT FPLN");
         scr->set_line_L(1, "<DEP");
         scr->set_line_L_val(1, scr->origin[0] ? scr->origin : "KSEA");
         scr->set_line_R(1, "ARR>");
         scr->set_line_L(2, "");
         scr->set_line_L_val(2, scr->dest[0] ? scr->dest : "KBFI");
         scr->set_line_R(2, "ARR>");
+        scr->set_line_L(5, "<INDEX");
     } else if (g_deparr_mode == 'D') {
-        // === DEPART ===
-        scr->set_line_L(0, "KSEA DEPART");           scr->set_line_R(0, "1/1");
-        scr->set_line_L_val(0, "ACT FPLN");
-        scr->set_line_L(1, "SIDE");                   scr->set_line_R(1, "RWYS");
-        bool has_sel = (g_deparr.dep_sid[0] && g_deparr.dep_rwy[0]);
+        // === DEPART 离场 ===
+        DepArrSelection& sel = g_select_dep_arr[0];  // [0]=离场
+        const char* apt = scr->origin[0] ? scr->origin : "KSEA";
+
+        char title[32];
+        snprintf(title, 32, "%s DEPART", apt);
+        scr->set_line_L(0, title);                   scr->set_line_R(0, "1/1");
+
+        bool has_sel = (sel.select_proc[0] && sel.select_runway[0]);
         if (!has_sel) {
-            // 未选: 显示全部
-            int c=0;
-            for (int i=0;i<ksea_sid_count&&c<3;i++)
-                { scr->set_line_L(2+c, ksea_sids[i].name); c++; }
-            const char* rwys[]={"RW16C","RW16L","RW16R"};
-            for (int i=0;i<3;i++) scr->set_line_R(2+i, rwys[i]);
+            // 未选: 显示全部程序 (左侧 L2-L5) + 跑道 (右侧 R2-R5)
+            scr->set_line_L(1, "SIDS");                scr->set_line_R(1, "RUNWAYS");
+            for (int i = 0; i < sel.proc_count && i < 4; i++)
+                scr->set_line_L(2 + i, sel.procs[i]);
+            for (int i = 0; i < sel.rwy_count && i < 4; i++)
+                scr->set_line_R(2 + i, sel.runways[i]);
         } else {
-            // 已选: 只显示选中项+TRANS
-            char b[32];
-            snprintf(b,32,"%s <SEL>",g_deparr.dep_sid); scr->set_line_L(2,b);
-            scr->set_line_L(3,"TRANS"); scr->set_line_L(4,g_deparr.dep_trans[0]?g_deparr.dep_trans:"-----");
-            snprintf(b,32,"%s <SEL>",g_deparr.dep_rwy); scr->set_line_R(2,b);
-            scr->set_line_R(3,"TRANS"); scr->set_line_R(4,g_deparr.dep_trans[0]?g_deparr.dep_trans:"-----");
+            // 已选: 显示选中项 + 过渡点
+            char buf[32];
+            snprintf(buf, 32, "%s <SEL>", sel.select_proc);
+            scr->set_line_L(2, buf);
+            scr->set_line_L(3, "TRANS");
+            scr->set_line_L(4, sel.select_trans[0] ? sel.select_trans : "-----");
+            if (sel.trans_count > 1)
+                scr->set_line_L(5, sel.trans[1]);
+
+            snprintf(buf, 32, "%s <SEL>", sel.select_runway);
+            scr->set_line_R(2, buf);
+            scr->set_line_R(3, "TRANS");
         }
     } else {
-        // === ARRIVAL ===
-        scr->set_line_L(0, "KSEA ARRIVAL");          scr->set_line_R(0, "1/1");
-        scr->set_line_L_val(0, "ACT FPLN");
-        scr->set_line_L(1, "STARS");                  scr->set_line_R(1, "APPR");
-        bool has_arr = (g_deparr.arr_star[0] && g_deparr.arr_appr[0]);
+        // === ARRIVAL 进场 ===
+        DepArrSelection& sel = g_select_dep_arr[1];  // [1]=进场
+        const char* apt = scr->dest[0] ? scr->dest : "KBFI";
+
+        char title[32];
+        snprintf(title, 32, "%s ARRIVAL", apt);
+        scr->set_line_L(0, title);                   scr->set_line_R(0, "1/1");
+
+        bool has_arr = (sel.select_proc[0] && sel.select_runway[0]);
         if (!has_arr) {
-            int sc=0,ac=0;
-            for(int i=0;i<kbfi_star_count;i++){
-                if(kbfi_stars[i].type=='T'&&sc<2){scr->set_line_L(2+sc,kbfi_stars[i].name);sc++;}
-                if(kbfi_stars[i].type=='A'&&ac<2){scr->set_line_R(2+ac,kbfi_stars[i].name);ac++;}
+            // 未选: STARS(左侧) + APPROACHES(右侧)
+            scr->set_line_L(1, "STARS");               scr->set_line_R(1, "APPROACHES");
+            int sc = 0, ac = 0;
+            for (int i = 0; i < sel.proc_count; i++) {
+                // 查找该程序的类型
+                char t = 0;
+                for (int j = 0; j < g_element_count; j++) {
+                    if (strcmp(g_elements[j].name, sel.procs[i]) == 0 &&
+                        strcmp(g_elements[j].airport, apt) == 0) {
+                        t = g_elements[j].type; break;
+                    }
+                }
+                if (t == ELEM_STAR && sc < 4)
+                    scr->set_line_L(2 + sc++, sel.procs[i]);
+                else if (t == ELEM_APPROACH && ac < 4)
+                    scr->set_line_R(2 + ac++, sel.procs[i]);
             }
+            // 也显示跑道
+            for (int i = 0; i < sel.rwy_count && i < 4; i++)
+                scr->set_line_R(2 + i, sel.runways[i]);
         } else {
-            char b[32];
-            snprintf(b,32,"%s <SEL>",g_deparr.arr_star); scr->set_line_L(2,b);
-            scr->set_line_L(3,"TRANS"); scr->set_line_L(4,g_deparr.arr_trans[0]?g_deparr.arr_trans:"-----");
-            snprintf(b,32,"%s <SEL>",g_deparr.arr_appr); scr->set_line_R(2,b);
-            scr->set_line_R(3,"TRANS"); scr->set_line_R(4,"XYZ");
+            char buf[32];
+            snprintf(buf, 32, "%s <SEL>", sel.select_proc);
+            scr->set_line_L(2, buf);
+            scr->set_line_L(3, "TRANS");
+            scr->set_line_L(4, sel.select_trans[0] ? sel.select_trans : "-----");
+            if (sel.trans_count > 1)
+                scr->set_line_L(5, sel.trans[1]);
+
+            snprintf(buf, 32, "%s <SEL>", sel.select_runway);
+            scr->set_line_R(2, buf);
+            scr->set_line_R(3, "TRANS");
         }
     }
 }

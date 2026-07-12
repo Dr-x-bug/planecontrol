@@ -37,6 +37,7 @@
 #include "FMC/fmc_ui.h"
 #include "FMC/fmc_pages.h"
 #include "FMC/fmc_route.h"
+#include "FMC/fmc_deparr.h"
 
 // ============================================================
 // 共享内存 IPC
@@ -140,6 +141,9 @@ struct CockpitContext::Impl {
                          "assets/apt.dat");
         load_route_from_fms("assets/KSEAKBFI.fms");
         printf("[Cockpit] FMC route: %d waypoints\n", g_route.count);
+
+        // 初始化进离场数据 (KSEA/KBFI/ZUUU/ZUCK)
+        deparr_data_init();
 
         // 初始化按钮
         fmc_buttons_init();
