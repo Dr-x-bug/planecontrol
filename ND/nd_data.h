@@ -1,3 +1,23 @@
+/**
+ * nd_data.h — ND 文件模式数据读取 (离线回放)
+ *
+ * ========== 用途 ==========
+ * 当 X-Plane 不可用时, 从本地 CSV 文件 nd.dat 读取模拟飞行数据,
+ * 实现离线开发和演示。数据文件循环读取 (fseek 回文件头)。
+ *
+ * ========== 数据格式 ==========
+ * nd.dat 每行: x_pos, y_pos, heading, speed (CSV, 无表头, 约2000行)
+ *   例: 320,450,270,30
+ *
+ * ========== NDData 字段 ==========
+ *   ac_lat/ac_lon — 飞机经纬度 (文件模式下未使用, 由坐标推算)
+ *   heading        — 航向 (0-360°)
+ *   gs             — 地速 (kt, speed×10)
+ *   tas            — 真空速 (kt, gs-10 估算)
+ *   wind_dir       — 风向 (模拟值, hdg+120°)
+ *   wind_spd       — 风速 (模拟值, spd%20+15)
+ */
+
 #pragma once
 #include <cstdio>
 #include <cstring>

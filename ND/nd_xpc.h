@@ -1,3 +1,26 @@
+/**
+ * nd_xpc.h — X-Plane Connect (XPC) 飞行数据接口
+ *
+ * ========== 工作原理 ==========
+ * 通过 UDP 协议与本地 X-Plane 模拟器通信, 实时获取飞行数据。
+ * xplaneConnect 库提供:
+ *   - openUDP()          打开UDP套接字
+ *   - setCONN()          设置目标端口
+ *   - getPOSI()          获取位置/姿态数据 (经纬度/高度/俯仰/横滚/航向)
+ *   - getDREFs()         获取数据引用 (地速/真空速/垂直速度/风向/风速)
+ *   - sendCOMM()         发送命令 (用于向X-Plane FMC输入数据)
+ *   - closeUDP()         关闭连接
+ *
+ * ========== NDFlightData 结构 ==========
+ * 包含所有ND渲染所需的飞行参数, 每个参数配有有效性标志 (xxx_valid),
+ * 用于容错: 若某次UDP通信失败, 仅无效化对应字段而不丢弃整帧数据。
+ *
+ * ========== 知识点 ==========
+ *   - UDP通信: 无连接, 低延迟, 适合实时数据流
+ *   - 数据引用(DREF): X-Plane内部变量的字符串路径标识
+ *   - 容错设计: 逐字段的有效性标志
+ */
+
 #pragma once
 #include <cstdio>
 #include <cstring>

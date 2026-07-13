@@ -1,11 +1,37 @@
+/**
+ * fmc_pages.cpp — FMC 页面绘制函数实现
+ *
+ * ========== 架构 ==========
+ * FMC使用"页面注册表"模式: g_pages[] 数组将页面枚举映射到绘制函数,
+ * fmc_switch_page() 是统一的页面切换入口。
+ *
+ * 每个页面绘制函数的职责:
+ *   1. scr->clear_lines()         清空6行×2列显示缓冲区
+ *   2. scr->set_line_L/R(row,text) 填充左/右行文本
+ *   3. scr->set_line_L/R_val()    填充大字数值 (标签下方)
+ *
+ * ========== 页面列表 ==========
+ *   INDEX      — 主页: <STATUS / ROUTE MENU> / DATABASE> / ARR DATE>
+ *   INIT/REF   — 识别/参考: IDENT状态页(NAV DATA/UTC/DATE等)
+ *   RTE        — 航路: ORIGIN/DEST/FLT_NO输入 + 航段浏览
+ *   CLB/CRZ/DES— VNAV爬升/巡航/下降: TGT SPEED/ALT/TRANS参数
+ *   DEP/ARR    — 进离场: 三级界面(INDEX→DEP/ARR→选择页)
+ *   LEGS       — 航段列表
+ *   PROG       — 飞行进程
+ */
+
 #include "fmc_pages.h"
 #include "fmc_route.h"
 #include "fmc_deparr.h"
 #include <cstdio>
 #include <cstring>
 
-FMCScreen g_screen;
+// ============================================================
+// 全局页面状态
+// ============================================================
+FMCScreen g_screen;  // FMC屏幕完整状态 (6行×2列 + 草稿栏 + 临时参数)
 
+// 页面注册表: 将FMCPage枚举映射到对应的绘制函数
 PageDef g_pages[] = {
     {PAGE_INDEX,    "INDEX",          page_draw_index},
     {PAGE_INIT_REF, "INIT/REF INDEX", page_draw_init_ref},
@@ -17,10 +43,20 @@ PageDef g_pages[] = {
     {PAGE_LEGS,     "LEGS",           page_draw_legs},
     {PAGE_HOLD,     "HOLD",           page_draw_hold},
     {PAGE_PROG,     "PROG",           page_draw_prog},
-    {PAGE_FIX,      "FIX",            page_draw_legs},
-    {PAGE_NAV_RAD,  "NAV RAD",        page_draw_legs},
+    {PAGE_FIX,      "FIX",            page_draw_legs},       // 复用LEGS绘制
+    {PAGE_NAV_RAD,  "NAV RAD",        page_draw_legs},       // 复用LEGS绘制
 };
 
+/**
+ * fmc_switch_page — 统一的页面切换函数
+ *
+ * 调用时机: 用户点击功能键(INIT REF/RTE/CLB等) 或 LSK触发跳转时
+ * 执行步骤:
+ *   1. 更新 g_screen.current_page
+ *   2. 设置 need_redraw 标志 (通知渲染器重绘)
+ *   3. 清空草稿栏 (避免跨页面数据残留)
+ *   4. 立即调用目标页面的 draw() 函数填充显示数据
+ */
 void fmc_switch_page(FMCPage page) {
     if (page >= PAGE_COUNT) return;
     g_screen.current_page = page;
@@ -29,10 +65,10 @@ void fmc_switch_page(FMCPage page) {
     g_pages[page].draw(&g_screen);
 }
 
-// INIT/REF 子页面状态: 0=主页, 1=IDENT状态页
+// INIT/REF 子页面状态: 0=主页(功能列表), 1=IDENT状态页(导航数据库详情)
 int g_init_subpage = 0;
 
-// DEP/ARR 模式: 0=INDEX首页, 'D'=离场, 'A'=进场 (定义在 fmc_deparr.cpp)
+// g_deparr_mode 定义在 fmc_deparr.cpp 中 (避免重复定义)
 
 // ===== INDEX 主页 (默认首页, 与真实FMC面板一致) =====
 void page_draw_index(FMCScreen* scr) {

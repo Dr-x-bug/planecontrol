@@ -1,13 +1,28 @@
 /**
  * shared_mem.h — FMC ↔ ND 共享内存通信协议
  *
- * 通过 Windows 共享内存实现进程间通信(IPC)
- * - FMC 端: 飞行员输入航路, 写入共享内存
- * - ND 端:  读取共享内存航路列表, 在地图上渲染飞行航线
+ * ========== 设计原理 ==========
+ * 通过 Windows 文件映射 (File Mapping) 实现进程间零拷贝数据共享:
+ *   1. FMC 端: 飞行员编辑航路 → write_route() 写入共享内存
+ *   2. ND 端:  每帧 has_new_data() 检测版本号变化 → read_route() 读取
+ *   3. 飞机位置: update_aircraft_position() 双向同步
  *
- * 知识点: 进程间通信(IPC)、共享内存机制、数据同步
- * 重点:   共享内存的创建与数据读写
- * 难点:   多进程数据同步与一致性保障
+ * ========== 同步机制 ==========
+ *   写保护:  Mutex互斥锁 (100ms超时) + write_flag原子标志双重保护
+ *   版本号:  每次写入 InterlockedIncrement(&version), 读取端通过版本号
+ *            判断数据是否更新, 避免重复渲染
+ *   飞机位置: 轻量级更新(仅3个double), 使用Mutex保护
+ *
+ * ========== 内存布局 ==========
+ *   SharedRouteData (4096字节):
+ *     [0-3]    write_flag  (volatile LONG, 原子标志)
+ *     [4-7]    version     (volatile LONG, 版本号)
+ *     [8-11]   wpt_count
+ *     [12-19]  origin[8]
+ *     [20-27]  dest[8]
+ *     [28-43]  flt_no[16]
+ *     [44-67]  ac_lat/ac_lon/ac_hdg (3×8=24字节)
+ *     [68-...] wpts[50]   (50×40=2000字节)
  */
 
 #pragma once
@@ -15,48 +30,73 @@
 #include <cstring>
 #include <cstdio>
 
-// ===== 共享内存配置 =====
-#define SHM_NAME          "Global\\ND_FMC_Route_Shared"
-#define SHM_MUTEX_NAME    "Global\\ND_FMC_Route_Mutex"
-#define SHM_MAX_WPTS      50          // 最大航路点数量
-#define SHM_NAME_MAX      16          // 航路点名称最大长度
-#define SHM_BUF_SIZE      4096        // 共享内存总大小
+// ============================================================
+// 共享内存配置常量
+// ============================================================
+#define SHM_NAME          "Global\\ND_FMC_Route_Shared"  // 内核对象名称 (Global\\前缀跨Session)
+#define SHM_MUTEX_NAME    "Global\\ND_FMC_Route_Mutex"   // 互斥锁名称
+#define SHM_MAX_WPTS      50          // 最大航路点数量 (Boeing 737典型航线<30点)
+#define SHM_NAME_MAX      16          // 航路点名称最大长度 (如 "KSEA", "VOR116.80")
+#define SHM_BUF_SIZE      4096        // 共享内存总大小 (一页内存, 对齐友好)
 
-// ===== 共享内存数据结构 =====
+// ============================================================
+// 共享内存数据结构
+// ============================================================
+
+/** 单个共享航路点 (与FMC内部 RouteWpt 对应, 但使用定长char数组便于IPC) */
 struct SharedRoutePoint {
-    char   id[SHM_NAME_MAX];   // 航路点标识符 (ICAO/VOR/FIX/AIRPORT)
-    double lat;                 // 纬度 (deg)
-    double lon;                 // 经度 (deg)
-    int    freq;                // 频率 (VOR/NDB, kHz*100)
-    char   type;                // 'V'=VOR, 'N'=NDB, 'F'=FIX, 'A'=AIRPORT
+    char   id[SHM_NAME_MAX];   // 航路点标识符 (如 "KSEA", "BLI")
+    double lat;                 // 纬度 (deg, WGS84)
+    double lon;                 // 经度 (deg, WGS84)
+    int    freq;                // 导航频率 (kHz×100, 仅VOR/NDB有效)
+    char   type;                // 类型: 'V'=VOR, 'N'=NDB, 'F'=FIX, 'A'=AIRPORT
 };
 
+/** 共享内存完整数据结构 (单次读写的基本单元) */
 struct SharedRouteData {
-    volatile LONG write_flag;   // 0=可读, 1=FMC正在写入 (原子标志)
-    volatile LONG version;      // 数据版本号 (每次写入递增)
-    int           wpt_count;    // 当前航路点数量
-    char          origin[8];    // 起飞机场 (ICAO)
-    char          dest[8];      // 目的地机场 (ICAO)
-    char          flt_no[16];   // 航班号
-    double        ac_lat;       // 当前飞机纬度
-    double        ac_lon;       // 当前飞机经度
-    double        ac_hdg;       // 当前飞机航向
-    SharedRoutePoint wpts[SHM_MAX_WPTS];  // 航路点数组
+    volatile LONG write_flag;   // 写保护标志: 0=空闲可读, 1=FMC正在写入
+    volatile LONG version;      // 单调递增版本号 (ND端据此判断数据是否更新)
+    int           wpt_count;    // 当前有效航路点数量 (0 ≤ wpt_count ≤ SHM_MAX_WPTS)
+    char          origin[8];    // 起飞机场ICAO码 (如 "KSEA")
+    char          dest[8];      // 目的地机场ICAO码 (如 "KBFI")
+    char          flt_no[16];   // 航班号 (如 "ASA12")
+    double        ac_lat;       // 当前飞机纬度 (实时更新)
+    double        ac_lon;       // 当前飞机经度 (实时更新)
+    double        ac_hdg;       // 当前飞机航向 (deg, 实时更新)
+    SharedRoutePoint wpts[SHM_MAX_WPTS];  // 航路点数组 (按航线顺序排列)
 };
 
-// ===== 共享内存管理类 =====
+// ============================================================
+// SharedMemoryIPC — 共享内存管理类
+// ============================================================
+// 封装了Windows文件映射API的创建/读写/释放全生命周期
+//
+// 使用示例:
+//   SharedMemoryIPC shm;
+//   shm.create();                           // FMC端创建
+//   shm.write_route(wpts, count, ...);       // 写入航路
+//   shm.update_aircraft_position(lat,lon,hdg);  // 更新位置
+//   shm.read_route(data);                   // ND端读取
+//   shm.close();                             // 释放
 class SharedMemoryIPC {
 public:
-    HANDLE              hMapFile = NULL;
-    HANDLE              hMutex   = NULL;
-    SharedRouteData*    pData    = nullptr;
+    HANDLE              hMapFile = NULL;   // 文件映射内核对象句柄
+    HANDLE              hMutex   = NULL;   // 互斥锁句柄
+    SharedRouteData*    pData    = nullptr; // 映射视图指针 (直接读写此地址)
 
     SharedMemoryIPC() = default;
 
-    // ---- 创建共享内存 (FMC端/首个进程调用) ----
+    /**
+     * create — 创建或打开共享内存
+     *
+     * 首个调用进程: 创建新的文件映射 + 初始化数据结构为零
+     * 后续调用进程: 打开已存在的文件映射 (GetLastError()==ERROR_ALREADY_EXISTS)
+     *
+     * @return true=成功, false=失败 (打印错误码到控制台)
+     */
     bool create() {
         hMapFile = CreateFileMappingA(
-            INVALID_HANDLE_VALUE,       // 使用系统分页文件
+            INVALID_HANDLE_VALUE,       // 使用系统分页文件 (非磁盘文件)
             NULL,                        // 默认安全属性
             PAGE_READWRITE,              // 可读写
             0,                           // 高位大小

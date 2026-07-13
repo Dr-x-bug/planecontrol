@@ -1,3 +1,32 @@
+/**
+ * nd_thread.h — ND 数据采集子线程 (双缓冲无锁同步)
+ *
+ * ========== 架构 ==========
+ * 使用 Windows CreateThread 创建独立的数据采集线程,
+ * 循环从 X-Plane 获取飞行数据并通过双缓冲 (double-buffering)
+ * 与主渲染线程同步, 避免数据竞争。
+ *
+ * ========== 双缓冲同步 ==========
+ * 原理:
+ *   SharedNDBuffer 包含两个 NDFlightData 缓冲区 (buf[0], buf[1]),
+ *   子线程写入 write_idx 指向的缓冲区, 写入完成后原子交换索引;
+ *   主线程从 read_idx 读取最新完成的数据帧。
+ *
+ * 同步原语:
+ *   atomic_swap_buffer()  — InterlockedExchange 原子交换读写索引
+ *   atomic_read_data()    — InterlockedCompareExchange 原子读取
+ *
+ * 优点:
+ *   - 无锁设计: 不需要Mutex/CriticalSection, 性能极高
+ *   - 读写分离: 写入和读取操作不同的缓冲区, 永不冲突
+ *   - 数据完整性: 主线程始终读到完整的一帧数据
+ *
+ * ========== 知识点 ==========
+ *   - Windows多线程: CreateThread / WaitForSingleObject / TerminateThread
+ *   - 原子操作: InterlockedExchange / InterlockedCompareExchange / InterlockedIncrement
+ *   - 双缓冲: 生产者-消费者模型的无锁实现
+ */
+
 #pragma once
 #include <windows.h>
 #include <cstdio>

@@ -1,3 +1,35 @@
+/**
+ * nd_map.h — ND 导航显示地图渲染核心
+ *
+ * ========== 坐标系统 ==========
+ * ND采用"飞机居中, 地图旋转"的弧形罗盘模式 (ARC MODE):
+ *   - ARC_CX/ARC_CY: 弧形罗盘中心坐标
+ *   - ARC_R:         弧形半径 (430px)
+ *   - ARC_START/END: 弧形角度范围 (210°-330°, 即120°扇形视野)
+ *   - ACFT_Y:        飞机图标Y坐标 (固定在弧形底部下方)
+ *
+ * ========== 坐标转换 ==========
+ *   wpt_to_screen(): 将航路点的地理坐标(经纬度)转为屏幕坐标
+ *     1. calc_dist_nm()   计算飞机到航路点的距离 (海里)
+ *     2. calc_bearing_deg() 计算真方位角 (度)
+ *     3. 距离×比例尺 → 像素偏移
+ *     4. 方位角 - 飞机航向 → 相对角度 → 屏幕XY
+ *
+ * ========== 渲染层次 ==========
+ *   1. draw_top_mode()    — 顶部航向指示器 (HDG/TRK/MAG)
+ *   2. draw_arc_compass() — 弧形罗盘 (航向刻度弧线)
+ *   3. draw_route_lines() — 航线 (绿色实线 + 品红色虚线)
+ *   4. draw_waypoints()   — 航路点标签 (白色文字)
+ *   5. draw_navaids()     — 导航台符号 (VOR◆/NDB○/AIRPORT★)
+ *   6. draw_aircraft()    — 本机位置 (白色倒三角)
+ *   7. draw_data_block()  — 左上角数据块 (TAS/GS/WIND等)
+ *
+ * ========== 知识点 ==========
+ *   - 大圆距离计算: Haversine公式
+ *   - 方位角计算: atan2 球面三角
+ *   - SDL2_gfx: 矢量图形绘制 (圆/弧/线)
+ */
+
 #pragma once
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>

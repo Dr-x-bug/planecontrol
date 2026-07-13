@@ -1,3 +1,39 @@
+/**
+ * fmc_ui.h — FMC 用户界面组件 (按键定义、交互回调)
+ *
+ * ========== FMC 按键布局 ==========
+ * 真实 Boeing 737 FMC 面板包含约55个按键, 分为5组:
+ *   1. 行选键 (LSK)  — L1-L6 (左6个) + R1-R6 (右6个)  = 12个
+ *   2. 功能键         — INIT REF/RTE/CLB/CRZ/DES/DEP ARR等 = 14个
+ *   3. 字母键         — A-Z = 26个
+ *   4. 数字键         — 0-9 + . + +/- = 12个
+ *   5. 编辑键         — SP/DEL/CLR/SLASH = 4个
+ *   6. 执行键         — EXEC = 1个
+ *
+ * ========== FMCButton 结构 ==========
+ * 每个按键包含:
+ *   - key:   枚举标识 (用于switch分发)
+ *   - shape: 形状 (矩形/圆形)
+ *   - rect:  边界矩形 (用于碰撞检测)
+ *   - label: 显示标签 (如 "A", "INIT REF")
+ *   - state: 位标志 (NORMAL/HOVER/PRESSED/ACTIVE)
+ *   - on_click: 回调函数指针
+ *   - color_normal/color_hover: 颜色状态
+ *
+ * ========== 交互流程 ==========
+ *   fmc_hit_test()    → 鼠标坐标 → 按键索引 (碰撞检测)
+ *   fmc_update_hover() → 更新悬停高亮状态
+ *   fmc_handle_click() → 按键按下 → 调用 on_click 回调
+ *
+ *   回调分发:
+ *     fmc_on_lsk()      → 行选键统一处理 (内部按页面分发)
+ *     fmc_on_func_key() → 功能键 (页面切换/PREV NEXT翻页)
+ *     fmc_on_letter()   → 字母键 → g_screen.type_char()
+ *     fmc_on_number()   → 数字键 → g_screen.type_char()
+ *     fmc_on_edit()     → 编辑键 → g_screen.backspace()/clear_scratchpad()
+ *     fmc_on_exec()     → EXEC键 → 参数校验 + 数据同步
+ */
+
 #pragma once
 #include <SDL2/SDL.h>
 #include "config.h"

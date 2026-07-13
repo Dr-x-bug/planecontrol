@@ -1,3 +1,34 @@
+/**
+ * fmc_buttons.cpp — FMC 按钮事件处理核心
+ *
+ * ========== 架构说明 ==========
+ * FMC面板的所有按键事件通过三个分组回调函数处理:
+ *   fmc_on_lsk()      — 行选键 (L1-L6 / R1-R6): 屏幕两侧6组按键
+ *   fmc_on_func_key() — 功能键 (INIT REF/RTE/CLB/CRZ/DES/DEP ARR等)
+ *   fmc_on_letter()   — 字母键 (A-Z)
+ *   fmc_on_number()   — 数字键 (0-9, ., +/-)
+ *   fmc_on_edit()     — 编辑键 (SP/DEL/CLR)
+ *   fmc_on_exec()     — 执行键 (EXEC): 确认输入并同步数据
+ *
+ * ========== 页面路由 ==========
+ * func_to_page(): 将功能键映射到对应页面, 是页面切换的枢纽
+ *
+ * ========== LSK处理流程 (fmc_on_lsk) ==========
+ * 根据当前页面 (g_screen.current_page) 分发到不同处理分支:
+ *   PAGE_INDEX    → INDEX主页: L1进IDENT, R2进航路, R3进数据库, R4进PROG
+ *   PAGE_INIT_REF → IDENT/STATUS: L1切换子页, L6返回INDEX
+ *   PAGE_DEP_ARR  → 进离场: 三级选择(INDEX→DEP/ARR→选择程序/跑道/过渡点)
+ *   PAGE_RTE      → 航路: 输入ORIGIN/DEST/FLT_NO/VIA, 翻页浏览航段
+ *   其他页面      → 默认: 走FMCScreen::lsk_press() 通用行选逻辑
+ *
+ * ========== EXEC处理流程 (fmc_on_exec) ==========
+ *   PAGE_RTE     → 航路就绪时同步到共享内存 + X-Plane FMC
+ *   PAGE_CLB     → 解析TGT SPEED / SPD ALT LIMIT / TRANS ALT
+ *   PAGE_CRZ     → 解析TGT SPEED / CRZ ALT
+ *   PAGE_DES     → 解析TGT SPEED / TRANS FL / SPD ALT LIMIT / VPA
+ *   所有页面     → 参数校验(valid_alt/valid_spd) → 更新全局变量 → 重绘
+ */
+
 #include "fmc_ui.h"
 #include "fmc_pages.h"
 #include "fmc_route.h"
@@ -5,14 +36,22 @@
 #include "../fmc_shm_sync.h"
 #include <cstring>
 
-FMCButton fmc_buttons[FMC_KEY_COUNT];
-char fmc_lines_L[6][24] = {"", "", "", "", "", ""};
-char fmc_lines_R[6][24] = {"", "", "", "", "", ""};
-char fmc_title[32] = "INIT/REF INDEX";
-char fmc_scratchpad[32] = "";
-bool fmc_exec_light = false;
+// ============================================================
+// FMC 全局UI状态 (定义在此, extern声明在 fmc_ui.h)
+// ============================================================
+FMCButton fmc_buttons[FMC_KEY_COUNT];  // 全部按键对象数组 (约55个)
+char fmc_lines_L[6][24] = {"", "", "", "", "", ""};  // 屏幕左6行显示文本
+char fmc_lines_R[6][24] = {"", "", "", "", "", ""};  // 屏幕右6行显示文本
+char fmc_title[32] = "INIT/REF INDEX";               // 页面标题
+char fmc_scratchpad[32] = "";                         // 草稿栏 (用户输入缓冲区)
+bool fmc_exec_light = false;                           // EXEC指示灯状态
 
-// ---- 函数键 → 页面映射 ----
+// ============================================================
+// func_to_page — 功能键到页面的路由映射
+// ============================================================
+// FMC面板顶部有12个功能键, 每个对应一个独立页面,
+// 按下即跳转 (无中间确认步骤)
+// ============================================================
 static FMCPage func_to_page(FMCKey key) {
     switch (key) {
     case FMC_KEY_INIT_REF: return PAGE_INIT_REF;
@@ -30,6 +69,21 @@ static FMCPage func_to_page(FMCKey key) {
     }
 }
 
+// ============================================================
+// fmc_on_lsk — 行选键 (Line Select Key) 回调
+// ============================================================
+// LSK是FMC交互的核心: 屏幕两侧各有6个行选键(L1-L6左, R1-R6右),
+// 用于选择/输入屏幕对应行的数据。真实FMC中称为 LSK 1L~6L / 1R~6R。
+//
+// 参数: btn — 被按下的按键对象, 通过 btn->key 区分 L1-L6 / R1-R6
+//
+// 处理流程:
+//   1. 解析按键索引 idx (0-5) 和左右侧 left
+//   2. 根据当前页面 g_screen.current_page 分发到不同处理分支
+//   3. 更新屏幕状态 (g_screen.line_L/R, g_screen.scratchpad)
+//   4. 同步全局UI显示缓冲区 (fmc_lines_L/R, fmc_scratchpad)
+//   5. 清除按键按下状态
+// ============================================================
 void fmc_on_lsk(FMCButton* btn) {
     int idx; bool left;
     if (btn->key >= FMC_KEY_L1 && btn->key <= FMC_KEY_L6) {
@@ -309,6 +363,19 @@ void fmc_on_lsk(FMCButton* btn) {
     btn->state &= ~FMC_STATE_PRESSED;
 }
 
+// ============================================================
+// fmc_on_func_key — 功能键回调
+// ============================================================
+// 处理顶部12个功能键 + PREV PAGE/NEXT PAGE翻页键
+//
+// 翻页逻辑:
+//   - RTE/LEGS页面: 调用 g_route.prev_page()/next_page() 翻航段页
+//   - CLB/CRZ/DES页面: 循环切换 CLB(1/3)↔CRZ(2/3)↔DES(3/3)
+//   - 其他页面: PREV/NEXT无操作
+//
+// 页面切换:
+//   - INIT REF/RTE/CLB/CRZ/DES/DEP ARR等 → fmc_switch_page() 跳转
+// ============================================================
 void fmc_on_func_key(FMCButton* btn) {
     // PREV PAGE / NEXT PAGE: 在航路相关页面翻页
     if (btn->key == FMC_KEY_PREV_PAGE &&
@@ -391,6 +458,26 @@ void fmc_on_edit(FMCButton* btn) {
     btn->state &= ~FMC_STATE_PRESSED;
 }
 
+// ============================================================
+// fmc_on_exec — 执行键 (EXEC) 回调
+// ============================================================
+// EXEC键是FMC最重要的确认键, 负责将草稿栏数据正式提交。
+//
+// 处理优先级:
+//   1. RTE页面 + route_ready → 同步航路到共享内存 + X-Plane FMC (最高优先)
+//   2. 有草稿栏内容 → 解析为当前页面参数 → 校验 → 更新 → 重绘
+//      - CLB: TGT SPEED (100-399kt / M.40-.95) / SPD ALT LIMIT / TRANS ALT
+//      - CRZ: TGT SPEED / CRZ ALT (FL050-FL410 或 1000-41000ft)
+//      - DES: TGT SPEED / TRANS FL / VPA (0.5°-6.0°)
+//      - RTE: ORIGIN / DEST / FLT NO (通过line_L标签匹配)
+//   3. 无草稿栏 → 切换EXEC灯状态 (toggle)
+//
+// 校验规则 (PPT Day09 Slide 9):
+//   valid_alt: FL050-FL410 或 1000-41000ft
+//   valid_spd: 100-340kt
+//   valid_ci:  0-500 (成本指数)
+//   VPA:       0.5°-6.0°
+// ============================================================
 void fmc_on_exec(FMCButton* btn) {
     // RTE页: 若route_ready, EXEC执行同步
     if (g_screen.current_page == PAGE_RTE && g_screen.route_ready) {

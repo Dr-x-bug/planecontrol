@@ -1,26 +1,48 @@
 /**
  * fmc_deparr.cpp — DEP/ARR 进离场数据层实现
  *
- * 按 PPT Day09 规范:
- *   g_elements[] — 通用元素数组 (跑道/程序/过渡点)
- *   g_relations[] — 关联关系数组
- *   内置 KSEA, KBFI, ZUUU, ZUCK 四个机场数据
+ * ========== 数据组织方式 ==========
+ * 采用"元素-关系"模型存储四个机场的进离场数据:
+ *   - g_elements[] 展平存储所有元素 (约90个)
+ *   - g_relations[] 存储元素间的关联 (约80条)
+ *
+ * 每个元素由 add_elem() 逐条追加, 关联由 add_rel() 逐条追加,
+ * deparr_data_init() 作为统一入口, 一次性加载所有数据。
+ *
+ * ========== 查询算法复杂度 ==========
+ * 所有查询均为 O(N) 线性扫描, N≤200 (元素数) + ≤400 (关系数)
+ * 对于FMC这类数据规模(单机场≤20条跑道+程序)完全足够,
+ * 无需引入哈希表等复杂索引结构。
  */
 
 #include "fmc_deparr.h"
 #include <cstdio>
 
-// ===== 全局数据 =====
-Element  g_elements[MAX_ELEMENTS];
-int      g_element_count = 0;
-Relation g_relations[MAX_RELATIONS];
-int      g_relation_count = 0;
+// ============================================================
+// 全局数据定义
+// ============================================================
+Element  g_elements[MAX_ELEMENTS];    // 元素存储池
+int      g_element_count = 0;          // 当前元素计数
+Relation g_relations[MAX_RELATIONS];   // 关联关系存储池
+int      g_relation_count = 0;         // 当前关系计数
 
-// ===== 全局 DEP/ARR 状态 =====
-DepArrSelection g_select_dep_arr[2];   // [0]=DEP, [1]=ARR
-char            g_deparr_mode = 0;
+// DEP/ARR 用户选择状态
+DepArrSelection g_select_dep_arr[2];   // 索引: [0]=离场(DEP), [1]=进场(ARR)
+char            g_deparr_mode = 0;     // 界面模式: 0=INDEX, 'D'=离场, 'A'=进场
 
-// ===== 内部辅助: 添加元素 =====
+// ============================================================
+// 内部辅助函数
+// ============================================================
+
+/**
+ * 向 g_elements[] 追加一个元素
+ * @param name     元素名称 (如 "RW02L", "CTU 1X")
+ * @param type     元素类型 (ElemType枚举值)
+ * @param airport  所属机场ICAO码
+ * @param lat/lon  经纬度 (跑道使用, 程序/过渡点可省略)
+ * @param hdg      跑道磁航向 (度)
+ * @param len      跑道长度 (英尺)
+ */
 static void add_elem(const char* name, char type, const char* airport,
                      double lat=0, double lon=0, double hdg=0, int len=0) {
     if (g_element_count >= MAX_ELEMENTS) return;
@@ -33,7 +55,17 @@ static void add_elem(const char* name, char type, const char* airport,
     e.length_ft = len;
 }
 
-// ===== 内部辅助: 添加关联关系 =====
+/**
+ * 向 g_relations[] 追加一条关联关系
+ * @param a   元素A名称
+ * @param ta  元素A类型
+ * @param b   元素B名称
+ * @param tb  元素B类型
+ *
+ * 典型用法:
+ *   add_rel("CTU 1X", ELEM_SID, "RW02L", ELEM_RUNWAY)   → 程序关联跑道
+ *   add_rel("CTU 1X", ELEM_SID, "CTU", ELEM_TRANSITION) → 程序关联过渡点
+ */
 static void add_rel(const char* a, char ta, const char* b, char tb) {
     if (g_relation_count >= MAX_RELATIONS) return;
     Relation& r = g_relations[g_relation_count++];
@@ -43,9 +75,14 @@ static void add_rel(const char* a, char ta, const char* b, char tb) {
     r.type_b = tb;
 }
 
-// ===== 数据初始化: 加载所有机场数据 =====
+// ============================================================
+// deparr_data_init() — 加载四机场进离场数据库
+// ============================================================
+// 数据来源: 真实航图资料 (Jeppesen/Navigraph 公开数据)
+// 机场覆盖: KSEA(西雅图) / KBFI(波音) / ZUUU(成都双流) / ZUCK(重庆江北)
+// ============================================================
 void deparr_data_init() {
-    if (g_element_count > 0) return;  // 已初始化
+    if (g_element_count > 0) return;  // 防止重复初始化 (幂等保护)
 
     // ========================
     // KSEA — Seattle-Tacoma
@@ -230,7 +267,22 @@ void deparr_data_init() {
 // ============================================================
 // 查询函数实现
 // ============================================================
+// 三个查询函数的通用模式:
+//   1. 遍历 g_elements[] 找到目标元素
+//   2. 获取元素的类型信息
+//   3. 遍历 g_relations[] 找到匹配的关联关系
+//   4. 验证关联目标确实属于指定机场
+//   5. 去重后拷贝到输出数组
+// ============================================================
 
+/**
+ * query_runway_proc_by_airport — 查询机场的跑道+程序列表
+ *
+ * 分两趟扫描:
+ *   第1趟: 扫描所有类型为 ELEM_RUNWAY 且机场匹配的元素 → runways[]
+ *   第2趟: 扫描所有类型为指定type且机场匹配的元素 → procs[]
+ * 每趟扫描内部做 O(n²) 去重 (n≤20, 开销可忽略)
+ */
 void query_runway_proc_by_airport(const char* icao,
     char runways[][16], int& rwy_count,
     char procs[][16],   int& proc_count,
