@@ -20,6 +20,7 @@
 
 #pragma once
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 
 // ===== 全局ND导航数据变量 =====
