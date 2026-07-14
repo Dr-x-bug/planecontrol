@@ -33,6 +33,7 @@
 #include "fmc_pages.h"
 #include "fmc_route.h"
 #include "fmc_deparr.h"
+#include "fmc_data.h"
 #include "../fmc_shm_sync.h"
 #include <cstring>
 
@@ -140,157 +141,101 @@ void fmc_on_lsk(FMCButton* btn) {
         // DATABASE> 暂留当前页 (可扩展为数据库管理)
     }
 
-    // === DEP/ARR 页面: INDEX→DEP→ARR (按PPT Day09规范重构) ===
+    // === DEP/ARR 页面: INDEX→DEP→ARR ===
     else if (g_screen.current_page == PAGE_DEP_ARR) {
         if (g_deparr_mode == 0) {
-            // INDEX页: L1=<DEP (离场), L2=<ARR (进场目标机场)
+            // INDEX页
             if (left && idx == 1) {
-                // 进入离场模式
+                // L1: <DEP → 离场模式
                 g_deparr_mode = 'D';
-                DepArrSelection& sel = g_select_dep_arr[0];
-                sel.clear();
-                const char* apt = g_screen.origin[0] ? g_screen.origin : "KSEA";
-                // 查询该机场的跑道和SID
-                query_runway_proc_by_airport(apt,
-                    sel.runways, sel.rwy_count,
-                    sel.procs,   sel.proc_count,
-                    ELEM_SID, 20);
-            }
-            if (left && idx == 2) {
-                // 进入进场模式 (目标机场)
-                g_deparr_mode = 'A';
-                DepArrSelection& sel = g_select_dep_arr[1];
-                sel.clear();
-                const char* apt = g_screen.dest[0] ? g_screen.dest : "KBFI";
-                // 查询STAR+APPROACH
-                query_runway_proc_by_airport(apt,
-                    sel.runways, sel.rwy_count,
-                    sel.procs,   sel.proc_count,
-                    ELEM_STAR, 20);
-                // 追加APPROACH (后续调用会追加到 procs 数组末尾)
-                query_runway_proc_by_airport(apt,
-                    sel.runways, sel.rwy_count,
-                    sel.procs,   sel.proc_count,
-                    ELEM_APPROACH, 20);
+                dep_arr_type = 0;
+                strncpy(show_ariport, g_screen.origin[0] ? g_screen.origin : "KSEA", 19);
+                query_runway_proc_by_airport(show_ariport);
+                dep_arr_index = 1;
+                select_dep_arr[0] = {};  // 清空选择
             }
             if (left && idx == 5) {
-                // L6 <INDEX → 返回INDEX主页
+                // L6: <INDEX → 返回
                 g_deparr_mode = 0;
                 fmc_switch_page(PAGE_INDEX);
                 btn->state &= ~FMC_STATE_PRESSED;
                 return;
             }
-        } else if (g_deparr_mode == 'D') {
-            // === 离场选择 ===
-            DepArrSelection& sel = g_select_dep_arr[0];
-            const char* apt = g_screen.origin[0] ? g_screen.origin : "KSEA";
-
-            // 点击跑道 (右侧 R2-R5)
-            if (!left && idx >= 2 && idx <= 5) {
-                int ri = idx - 2;
-                if (ri < sel.rwy_count) {
-                    if (sel.select_runway[0] && strcmp(sel.select_runway, sel.runways[ri]) == 0)
-                        sel.select_runway[0] = '\0';  // 取消
-                    else {
-                        strncpy(sel.select_runway, sel.runways[ri], 15);
-                        sel.select_runway[15] = '\0';
-                    }
-                }
+            if (!left && idx == 1) {
+                // R1: ARR> (起始机场进场)
+                g_deparr_mode = 'D';
+                dep_arr_type = 1;
+                strncpy(show_ariport, g_screen.origin[0] ? g_screen.origin : "KSEA", 19);
+                query_runway_proc_by_airport(show_ariport);
+                dep_arr_index = 1;
+                select_dep_arr[1] = {};
             }
-
-            // 点击程序 (左侧 L2-L5)
-            if (left && idx >= 2 && idx <= 5) {
-                int pi = idx - 2;
-                if (pi < sel.proc_count) {
-                    if (sel.select_proc[0] && strcmp(sel.select_proc, sel.procs[pi]) == 0)
-                        sel.select_proc[0] = '\0';  // 取消
-                    else {
-                        strncpy(sel.select_proc, sel.procs[pi], 15);
-                        sel.select_proc[15] = '\0';
-
-                        // 查询该程序的过渡点
-                        sel.trans_count = query_trans_by_proc(apt, sel.select_proc,
-                            sel.trans, 20);
-
-                        // 查询该程序关联的跑道 → 更新右侧跑道列表
-                        sel.rwy_count = query_runway_by_proc(apt, sel.select_proc,
-                            sel.runways, 20);
-
-                        // 默认选中第一个过渡点
-                        if (sel.trans_count > 0 && !sel.select_trans[0]) {
-                            strncpy(sel.select_trans, sel.trans[0], 15);
-                            sel.select_trans[15] = '\0';
-                        }
-                    }
-                }
-            }
-
-            // 点击过渡点 (左侧 L3-L5 区域的TRANS行)
-            if (left && sel.select_proc[0]) {
-                if (idx == 3 && sel.trans_count > 1) {
-                    // 切换过渡点
-                    static int trans_sel = 0;
-                    trans_sel = (trans_sel + 1) % sel.trans_count;
-                    strncpy(sel.select_trans, sel.trans[trans_sel], 15);
-                    sel.select_trans[15] = '\0';
-                }
-            }
-
-            // 如果程序和跑道都已选, 点亮EXEC
-            if (sel.select_proc[0] && sel.select_runway[0]) {
-                g_screen.route_ready = true;
-                g_screen.exec_light = true;
-                fmc_exec_light = true;
+            if (!left && idx == 2) {
+                // R2: ARR> (目标机场进场)
+                g_deparr_mode = 'D';
+                dep_arr_type = 2;
+                strncpy(show_ariport, g_screen.dest[0] ? g_screen.dest : "KBFI", 19);
+                query_runway_proc_by_airport(show_ariport);
+                dep_arr_index = 1;
+                select_dep_arr[1] = {};
             }
         } else {
-            // === 进场选择 ===
-            DepArrSelection& sel = g_select_dep_arr[1];
-            const char* apt = g_screen.dest[0] ? g_screen.dest : "KBFI";
+            // 离场/进场选择页
+            SelectDepArr* sda = &select_dep_arr[dep_arr_type >= 2 ? 1 : dep_arr_type];
 
-            // 点击跑道 (右侧)
-            if (!left && idx >= 2 && idx <= 5) {
-                int ri = idx - 2;
-                if (ri < sel.rwy_count) {
-                    if (sel.select_runway[0] && strcmp(sel.select_runway, sel.runways[ri]) == 0)
-                        sel.select_runway[0] = '\0';
-                    else {
-                        strncpy(sel.select_runway, sel.runways[ri], 15);
-                        sel.select_runway[15] = '\0';
+            if (left) {
+                if (sda->select_proc[0] && idx == 1) {
+                    // 点击L1: 回退(取消选择)
+                    memset(sda, 0, sizeof(*sda));
+                    query_runway_proc_by_airport(show_ariport);
+                    dep_arr_index = 1;
+                } else if (sda->select_proc[0] && idx >= 2 && idx <= 5) {
+                    // 选择过渡点
+                    int ti = idx - 2;
+                    if (ti < proc_trans_count) {
+                        strncpy(sda->select_proc_trans, proc_trans[ti], 19);
+                        sda->select_proc_trans[19] = '\0';
+                    }
+                } else if (!sda->select_proc[0]) {
+                    // 选择程序
+                    int pi = (dep_arr_index - 1) * 5 + idx - 1;
+                    if (pi < proc_count) {
+                        strncpy(sda->select_proc, proc[pi], 19);
+                        sda->select_proc[19] = '\0';
+                        query_trans_by_proc(show_ariport, sda->select_proc);
+                        query_runway_by_proc(show_ariport, sda->select_proc);
+                    }
+                }
+            } else {
+                if (sda->select_runway[0] && idx == 1) {
+                    // 点击R1: 回退
+                    memset(sda, 0, sizeof(*sda));
+                    query_runway_proc_by_airport(show_ariport);
+                    dep_arr_index = 1;
+                } else if (sda->select_runway[0] && idx >= 2 && idx <= 5) {
+                    // 选择跑道过渡点
+                    int ti = idx - 2;
+                    if (ti < runway_trans_count) {
+                        strncpy(sda->select_runway_trans, runway_trans[ti], 19);
+                        sda->select_runway_trans[19] = '\0';
+                    }
+                } else if (!sda->select_runway[0]) {
+                    // 选择跑道
+                    int ri = (dep_arr_index - 1) * 5 + idx - 1;
+                    if (ri < runway_count) {
+                        strncpy(sda->select_runway, runway[ri], 19);
+                        sda->select_runway[19] = '\0';
+                        query_trans_by_runway(show_ariport, sda->select_runway);
+                        query_proc_by_runway(show_ariport, sda->select_runway);
                     }
                 }
             }
-
-            // 点击程序 (左侧)
-            if (left && idx >= 2 && idx <= 5) {
-                int pi = idx - 2;
-                if (pi < sel.proc_count) {
-                    if (sel.select_proc[0] && strcmp(sel.select_proc, sel.procs[pi]) == 0)
-                        sel.select_proc[0] = '\0';
-                    else {
-                        strncpy(sel.select_proc, sel.procs[pi], 15);
-                        sel.select_proc[15] = '\0';
-
-                        sel.trans_count = query_trans_by_proc(apt, sel.select_proc,
-                            sel.trans, 20);
-                        sel.rwy_count = query_runway_by_proc(apt, sel.select_proc,
-                            sel.runways, 20);
-
-                        if (sel.trans_count > 0 && !sel.select_trans[0]) {
-                            strncpy(sel.select_trans, sel.trans[0], 15);
-                            sel.select_trans[15] = '\0';
-                        }
-                    }
-                }
-            }
-
-            if (sel.select_proc[0] || sel.select_runway[0]) {
-                g_screen.route_ready = true;
-                g_screen.exec_light = true;
-                fmc_exec_light = true;
-            }
+            will_exec = 1;
+            sda->select_flag = 0;
         }
-
-        page_draw_dep_arr(&g_screen);
+        fmc_switch_page(PAGE_DEP_ARR);  // 刷新页面
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
     }
 
     // === RTE页面: 机场/航班号输入 + 航段管理 ===
@@ -397,6 +342,20 @@ void fmc_on_func_key(FMCButton* btn) {
         else page_draw_legs(&g_screen);
         snprintf(fmc_title, 32, "%s", g_pages[g_screen.current_page].title);
         snprintf(fmc_scratchpad, 32, "%s", g_screen.scratchpad);
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+
+    // PREV/NEXT: DEP/ARR 分页
+    if (btn->key == FMC_KEY_PREV_PAGE && g_screen.current_page == PAGE_DEP_ARR && g_deparr_mode != 0) {
+        int total = ((runway_count > proc_count ? runway_count : proc_count) + 4) / 5;
+        if (dep_arr_index > 1) { dep_arr_index--; page_draw_dep_arr(&g_screen); }
+        btn->state &= ~FMC_STATE_PRESSED;
+        return;
+    }
+    if (btn->key == FMC_KEY_NEXT_PAGE && g_screen.current_page == PAGE_DEP_ARR && g_deparr_mode != 0) {
+        int total = ((runway_count > proc_count ? runway_count : proc_count) + 4) / 5;
+        if (dep_arr_index < total) { dep_arr_index++; page_draw_dep_arr(&g_screen); }
         btn->state &= ~FMC_STATE_PRESSED;
         return;
     }

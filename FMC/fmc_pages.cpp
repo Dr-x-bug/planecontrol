@@ -23,6 +23,7 @@
 #include "fmc_pages.h"
 #include "fmc_route.h"
 #include "fmc_deparr.h"
+#include "fmc_data.h"
 #include <cstdio>
 #include <cstring>
 
@@ -176,89 +177,76 @@ void page_draw_dep_arr(FMCScreen* scr) {
     scr->clear_lines();
 
     if (g_deparr_mode == 0) {
-        // === INDEX: DEP/ARR 入口页 ===
-        scr->set_line_L(0, "DEP/ARR INDEX");          scr->set_line_R(0, "ACT FPLN");
+        // === INDEX: DEP/ARR 入口页 (Cyan标签 + 白色数据) ===
+        scr->set_line_L(0, "DEP/ARR INDEX");
+        scr->set_line_R(0, "ACT FPLN");
         scr->set_line_L(1, "<DEP");
         scr->set_line_L_val(1, scr->origin[0] ? scr->origin : "KSEA");
         scr->set_line_R(1, "ARR>");
-        scr->set_line_L(2, "");
         scr->set_line_L_val(2, scr->dest[0] ? scr->dest : "KBFI");
         scr->set_line_R(2, "ARR>");
         scr->set_line_L(5, "<INDEX");
-    } else if (g_deparr_mode == 'D') {
-        // === DEPART 离场 ===
-        DepArrSelection& sel = g_select_dep_arr[0];  // [0]=离场
-        const char* apt = scr->origin[0] ? scr->origin : "KSEA";
-
-        char title[32];
-        snprintf(title, 32, "%s DEPART", apt);
-        scr->set_line_L(0, title);                   scr->set_line_R(0, "1/1");
-
-        bool has_sel = (sel.select_proc[0] && sel.select_runway[0]);
-        if (!has_sel) {
-            // 未选: 显示全部程序 (左侧 L2-L5) + 跑道 (右侧 R2-R5)
-            scr->set_line_L(1, "SIDS");                scr->set_line_R(1, "RUNWAYS");
-            for (int i = 0; i < sel.proc_count && i < 4; i++)
-                scr->set_line_L(2 + i, sel.procs[i]);
-            for (int i = 0; i < sel.rwy_count && i < 4; i++)
-                scr->set_line_R(2 + i, sel.runways[i]);
-        } else {
-            // 已选: 显示选中项 + 过渡点
-            char buf[32];
-            snprintf(buf, 32, "%s <SEL>", sel.select_proc);
-            scr->set_line_L(2, buf);
-            scr->set_line_L(3, "TRANS");
-            scr->set_line_L(4, sel.select_trans[0] ? sel.select_trans : "-----");
-            if (sel.trans_count > 1)
-                scr->set_line_L(5, sel.trans[1]);
-
-            snprintf(buf, 32, "%s <SEL>", sel.select_runway);
-            scr->set_line_R(2, buf);
-            scr->set_line_R(3, "TRANS");
-        }
     } else {
-        // === ARRIVAL 进场 ===
-        DepArrSelection& sel = g_select_dep_arr[1];  // [1]=进场
-        const char* apt = scr->dest[0] ? scr->dest : "KBFI";
+        // === DEPART / ARRIVAL 选择页 ===
+        SelectDepArr* sda = &select_dep_arr[dep_arr_type];
+        const char* apt = show_ariport[0] ? show_ariport :
+                          (dep_arr_type == 0 ? (scr->origin[0] ? scr->origin : "KSEA")
+                                             : (scr->dest[0] ? scr->dest : "KBFI"));
 
+        // 标题: 机场 + DEPART/ARRIVAL (左) + ACT/MODEL FPLN (右)
         char title[32];
-        snprintf(title, 32, "%s ARRIVAL", apt);
-        scr->set_line_L(0, title);                   scr->set_line_R(0, "1/1");
+        snprintf(title, 32, "%s %s", apt, dep_arr_type <= 1 ? "DEPART" : "ARRIVAL");
+        scr->set_line_L(0, title);
+        scr->set_line_R(0, will_exec ? "MODEL FPLN" : "ACT FPLN");
 
-        bool has_arr = (sel.select_proc[0] && sel.select_runway[0]);
-        if (!has_arr) {
-            // 未选: STARS(左侧) + APPROACHES(右侧)
-            scr->set_line_L(1, "STARS");               scr->set_line_R(1, "APPROACHES");
-            int sc = 0, ac = 0;
-            for (int i = 0; i < sel.proc_count; i++) {
-                // 查找该程序的类型
-                char t = 0;
-                for (int j = 0; j < g_element_count; j++) {
-                    if (strcmp(g_elements[j].name, sel.procs[i]) == 0 &&
-                        strcmp(g_elements[j].airport, apt) == 0) {
-                        t = g_elements[j].type; break;
-                    }
-                }
-                if (t == ELEM_STAR && sc < 4)
-                    scr->set_line_L(2 + sc++, sel.procs[i]);
-                else if (t == ELEM_APPROACH && ac < 4)
-                    scr->set_line_R(2 + ac++, sel.procs[i]);
-            }
-            // 也显示跑道
-            for (int i = 0; i < sel.rwy_count && i < 4; i++)
-                scr->set_line_R(2 + i, sel.runways[i]);
-        } else {
+        // 左侧: 程序列表 (SIDS/STARS)
+        if (sda->select_proc[0]) {
+            // 已选程序: 显示选中项 + 过渡点
             char buf[32];
-            snprintf(buf, 32, "%s <SEL>", sel.select_proc);
-            scr->set_line_L(2, buf);
-            scr->set_line_L(3, "TRANS");
-            scr->set_line_L(4, sel.select_trans[0] ? sel.select_trans : "-----");
-            if (sel.trans_count > 1)
-                scr->set_line_L(5, sel.trans[1]);
+            snprintf(buf, 32, "%s <SEL>", sda->select_proc);
+            scr->set_line_L(1, dep_arr_type == 0 ? "SIDS" : "STARS");
+            scr->set_line_L_val(1, buf);
+            scr->set_line_L(2, "TRANS");
+            if (sda->select_proc_trans[0])
+                scr->set_line_L_val(2, sda->select_proc_trans);
+            else {
+                for (int i = 0, r = 2; i < proc_trans_count && r < 5; i++, r++)
+                    scr->set_line_L(r, proc_trans[i]);
+            }
+        } else {
+            // 未选: 显示全部程序 (分页)
+            int start = (dep_arr_index - 1) * 5;
+            int end   = start + 4;
+            int row = 1;
+            for (int i = start; i <= end && i < proc_count; i++, row++) {
+                if (i == start)
+                    scr->set_line_L(row, dep_arr_type == 0 ? "SIDS" : "STARS");
+                scr->set_line_L_val(row, proc[i]);
+            }
+        }
 
-            snprintf(buf, 32, "%s <SEL>", sel.select_runway);
-            scr->set_line_R(2, buf);
-            scr->set_line_R(3, "TRANS");
+        // 右侧: 跑道列表
+        if (sda->select_runway[0]) {
+            char buf[32];
+            snprintf(buf, 32, "%s <SEL>", sda->select_runway);
+            scr->set_line_R(1, dep_arr_type == 0 ? "RWYS" : "APPR");
+            scr->set_line_R_val(1, buf);
+            scr->set_line_R(2, "TRANS");
+            if (sda->select_runway_trans[0])
+                scr->set_line_R_val(2, sda->select_runway_trans);
+            else {
+                for (int i = 0, r = 2; i < runway_trans_count && r < 5; i++, r++)
+                    scr->set_line_R(r, runway_trans[i]);
+            }
+        } else {
+            int start = (dep_arr_index - 1) * 5;
+            int end   = start + 4;
+            int row = 1;
+            for (int i = start; i <= end && i < runway_count; i++, row++) {
+                if (i == start)
+                    scr->set_line_R(row, dep_arr_type == 0 ? "RWYS" : "APPR");
+                scr->set_line_R_val(row, runway[i]);
+            }
         }
     }
 }

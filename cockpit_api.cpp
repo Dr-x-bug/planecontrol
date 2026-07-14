@@ -38,6 +38,7 @@
 #include "FMC/fmc_pages.h"
 #include "FMC/fmc_route.h"
 #include "FMC/fmc_deparr.h"
+#include "FMC/fmc_data.h"
 
 // ============================================================
 // 共享内存 IPC
@@ -144,6 +145,7 @@ struct CockpitContext::Impl {
 
         // 初始化进离场数据 (KSEA/KBFI/ZUUU/ZUCK)
         deparr_data_init();
+        init_airport_data();
 
         // 初始化按钮
         fmc_buttons_init();
@@ -479,6 +481,7 @@ struct CockpitContext::Impl {
         nd_data_close();
         shm_cockpit.close();
         ht.destroy();
+        destroy_airport_data();
 
         // 清除全局回调 (避免悬空指针)
         if (s_active_impl == this) {

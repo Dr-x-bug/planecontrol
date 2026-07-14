@@ -15,7 +15,8 @@ ND_C_SRC := ND/xplaneConnect.c
 
 # FMC 源文件
 FMC_SRC  := FMC/fmc_buttons.cpp FMC/fmc_buttons_init.cpp \
-            FMC/fmc_pages.cpp FMC/fmc_route.cpp FMC/fmc_deparr.cpp
+            FMC/fmc_pages.cpp FMC/fmc_route.cpp FMC/fmc_deparr.cpp \
+            FMC/fmc_data.cpp
 
 # Cockpit API 库 (可被外部项目链接)
 API_SRC  := cockpit_api.cpp
