@@ -76,10 +76,12 @@ extern XPCSocket g_xpc_sock;
 extern bool      g_xpc_ready;
 
 // 初始化 X-Plane 连接
+// ip:    X-Plane 主机 IP (默认 127.0.0.1)
+// port:  X-Plane 插件端口 (默认 49009), 客户端会自动选择空闲端口接收数据
 inline bool xpc_init(const char* ip = "127.0.0.1", unsigned short port = 49009) {
     g_xpc_sock = openUDP(ip);
-    // 设置 X-Plane 端口
-    setCONN(&g_xpc_sock, port);
+    // setCONN: 端口=0 让 OS 自动分配客户端接收端口, 避免与 X-Plane 插件端口冲突
+    setCONN(&g_xpc_sock, 0);
     g_xpc_ready = true;
     g_nd_data.connected = false;
     g_nd_data.error_count = 0;
