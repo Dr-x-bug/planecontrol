@@ -215,7 +215,7 @@ inline void draw_aircraft_symbol(NDRenderer& r) {
     lineRGBA(r.sdl_rend, cx, cy - sz, cx, ARC_CY - ARC_R, 255, 255, 255, 120);
 }
 
-// ---- Route lines (thicker green + purple shadow) ----
+// ---- Route lines (细白色虚线连接, 干净简洁) ----
 inline void draw_route(NDRenderer& r, const std::vector<Waypoint>& wpts,
                        double ac_lat, double ac_lon, double ac_hdg) {
     if (wpts.size() < 2) return;
@@ -227,21 +227,25 @@ inline void draw_route(NDRenderer& r, const std::vector<Waypoint>& wpts,
         wpt_to_screen(ac_lat, ac_lon, ac_hdg, wp.lat, wp.lon, px, py);
         sx.push_back(px); sy.push_back(py);
     }
-    // 紫色阴影 (更粗)
+    // 细白色虚线连接 (点间隔画法模拟虚线)
     for (size_t i = 0; i < sx.size() - 1; i++) {
-        thickLineRGBA(r.sdl_rend, sx[i]+2, sy[i]+2, sx[i+1]+2, sy[i+1]+2,
-                      5, Color::PURPLE.r, Color::PURPLE.g, Color::PURPLE.b, 100);
-    }
-    // 绿色主线条 (更粗)
-    for (size_t i = 0; i < sx.size() - 1; i++) {
-        thickLineRGBA(r.sdl_rend, sx[i], sy[i], sx[i+1], sy[i+1],
-                      5, Color::GREEN_RTE.r, Color::GREEN_RTE.g, Color::GREEN_RTE.b, 255);
-        thickLineRGBA(r.sdl_rend, sx[i], sy[i], sx[i+1], sy[i+1],
-                      2, Color::GREEN_LT.r, Color::GREEN_LT.g, Color::GREEN_LT.b, 255);
+        double dx = (double)(sx[i+1] - sx[i]);
+        double dy = (double)(sy[i+1] - sy[i]);
+        double len = sqrt(dx*dx + dy*dy);
+        if (len < 1.0) continue;
+        double ux = dx / len, uy = dy / len;
+        for (double t = 0; t < len; t += 8.0) {
+            double t2 = fmin(t + 3.0, len);
+            int x1 = (int)(sx[i] + ux * t);
+            int y1 = (int)(sy[i] + uy * t);
+            int x2 = (int)(sx[i] + ux * t2);
+            int y2 = (int)(sy[i] + uy * t2);
+            lineRGBA(r.sdl_rend, x1, y1, x2, y2, 200, 200, 200, 120);
+        }
     }
 }
 
-// ---- Waypoints (larger bright cyan diamonds with labels on black bg) ----
+// ---- Waypoints (高亮大号菱形 + 清晰白色标签) ----
 inline void draw_waypoints(NDRenderer& r, const std::vector<Waypoint>& wpts,
                            double ac_lat, double ac_lon, double ac_hdg) {
     for (size_t idx = 0; idx < wpts.size(); idx++) {
@@ -259,25 +263,36 @@ inline void draw_waypoints(NDRenderer& r, const std::vector<Waypoint>& wpts,
         int dx = sx - ARC_CX, dy = sy - ARC_CY;
         if (dx*dx + dy*dy > ARC_R * ARC_R && sy > ARC_CY + ARC_R) continue;
 
-        // 首尾航路点: 白色方框标记
+        // 首尾航路点: 更明显的白色方框标记
         if (idx == 0 || idx == wpts.size() - 1) {
-            int s2 = 8;
-            rectangleRGBA(r.sdl_rend, sx-s2, sy-s2, sx+s2, sy+s2, 255, 255, 255, 240);
+            int s2 = 10;
+            // 外框
+            rectangleRGBA(r.sdl_rend, sx-s2-1, sy-s2-1, sx+s2+1, sy+s2+1, 0, 0, 0, 200);
+            rectangleRGBA(r.sdl_rend, sx-s2, sy-s2, sx+s2, sy+s2, 255, 255, 255, 255);
         }
 
-        // 大号青色菱形 (10px)
-        int d = 10;
+        // 大号高亮菱形 (14px) — 比原来大40%
+        int d = 14;
         Sint16 vx[4] = {(Sint16)sx, (Sint16)(sx+d), (Sint16)sx, (Sint16)(sx-d)};
         Sint16 vy[4] = {(Sint16)(sy-d), (Sint16)sy, (Sint16)(sy+d), (Sint16)sy};
-        // 填充 - 青色
-        filledPolygonRGBA(r.sdl_rend, vx, vy, 4, 0, 220, 220, 255);
-        // 白边
-        aapolygonRGBA(r.sdl_rend, vx, vy, 4, 255, 255, 255, 240);
+        // 外发光 (黑色底衬)
+        Sint16 vx2[4] = {(Sint16)sx, (Sint16)(sx+d+2), (Sint16)sx, (Sint16)(sx-d-2)};
+        Sint16 vy2[4] = {(Sint16)(sy-d-2), (Sint16)sy, (Sint16)(sy+d+2), (Sint16)sy};
+        filledPolygonRGBA(r.sdl_rend, vx2, vy2, 4, 0, 0, 0, 180);
+        // 填充 - 亮青色
+        filledPolygonRGBA(r.sdl_rend, vx, vy, 4, 0, 240, 240, 255);
+        // 白色边框 (加粗)
+        aapolygonRGBA(r.sdl_rend, vx, vy, 4, 255, 255, 255, 255);
+        polygonRGBA(r.sdl_rend, vx, vy, 4, 255, 255, 255, 255);
 
-        // 标签带黑色背景 (提高可读性)
-        int tw = (int)strlen(wp.id.c_str()) * 8 + 4;
-        boxRGBA(r.sdl_rend, sx + 6, sy - 20, sx + 6 + tw, sy - 4, 0, 0, 0, 180);
-        r.draw_text(sx + 8, sy - 18, wp.id, Color::CYAN, true);
+        // 标签: 更大黑色背景 + 高亮白色文字
+        int tw = (int)strlen(wp.id.c_str()) * 9 + 6;
+        int label_x = sx + 8;
+        int label_y = sy - 22;
+        // 黑色背景 (加高)
+        boxRGBA(r.sdl_rend, label_x - 2, label_y - 1, label_x + tw, label_y + 17, 0, 0, 0, 220);
+        // 白色文字
+        r.draw_text(label_x, label_y, wp.id, Color::WHITE, false);
     }
 }
 
