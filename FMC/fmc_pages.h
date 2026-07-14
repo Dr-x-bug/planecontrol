@@ -179,6 +179,7 @@ void page_draw_dep_arr(FMCScreen* scr);
 void page_draw_legs(FMCScreen* scr);
 void page_draw_hold(FMCScreen* scr);
 void page_draw_prog(FMCScreen* scr);
+void page_draw_nav_rad(FMCScreen* scr);
 
 // ===== 页面切换 =====
 void fmc_switch_page(FMCPage page);

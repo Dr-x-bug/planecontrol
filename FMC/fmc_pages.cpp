@@ -43,8 +43,8 @@ PageDef g_pages[] = {
     {PAGE_LEGS,     "LEGS",           page_draw_legs},
     {PAGE_HOLD,     "HOLD",           page_draw_hold},
     {PAGE_PROG,     "PROG",           page_draw_prog},
-    {PAGE_FIX,      "FIX",            page_draw_legs},       // 复用LEGS绘制
-    {PAGE_NAV_RAD,  "NAV RAD",        page_draw_legs},       // 复用LEGS绘制
+    {PAGE_FIX,      "FIX",            page_draw_legs},
+    {PAGE_NAV_RAD,  "NAV RAD",        page_draw_nav_rad},
 };
 
 /**
@@ -288,10 +288,32 @@ void page_draw_hold(FMCScreen* scr) {
     scr->clear_lines();
     scr->set_line_L(0, "HOLD AT");       scr->set_line_R(0, "-----");
     scr->set_line_L(1, "INBOUND");       scr->set_line_R(1, "270/LEFT");
-    scr->set_line_L(2, "TURN DIR");      scr->set_line_R(2, "RIGHT");
-    scr->set_line_L(3, "LEG TIME");      scr->set_line_R(3, "1.0 MIN");
-    scr->set_line_L(4, "LEG DIST");      scr->set_line_R(4, "-----");
+    scr->set_line_L(2, "LEG TIME");      scr->set_line_R(2, "1.0 MIN");
+    scr->set_line_L(3, "LEG DIST");      scr->set_line_R(3, "-----");
+    scr->set_line_L(4, "FIX ETA");       scr->set_line_R(4, "-----");
     scr->set_line_L(5, "FIX ETA");       scr->set_line_R(5, "-----");
+}
+
+// ===== NAV RAD 页面 =====
+// Boeing 737 风格: VOR/ADF/ILS 频率与航道显示
+void page_draw_nav_rad(FMCScreen* scr) {
+    scr->clear_lines();
+
+    // Row 1: VOR L / VOR R
+    scr->set_line_L(1, "VOR L");
+    scr->set_line_L_val(1, "113.00  CRS 000");
+    scr->set_line_R(1, "VOR R");
+    scr->set_line_R_val(1, "113.00  CRS 000");
+
+    // Row 2: ADF L / ADF R
+    scr->set_line_L(2, "ADF L");
+    scr->set_line_L_val(2, "353.0");
+    scr->set_line_R(2, "ADF R");
+    scr->set_line_R_val(2, "353.0");
+
+    // Row 3: ILS
+    scr->set_line_L(3, "ILS");
+    scr->set_line_L_val(3, "110.90 / 000");
 }
 
 void page_draw_prog(FMCScreen* scr) {
@@ -310,14 +332,17 @@ void fmc_draw_screen(FMCRenderer& r) {
     r.fill_rect(98, 75, 430, 355, {1, 2, 1, 255});
 
     bool is_rte   = (g_screen.current_page == PAGE_RTE);
+    bool is_nav   = (g_screen.current_page == PAGE_NAV_RAD);
     bool is_index = (g_screen.current_page == PAGE_INDEX);
 
-    // ========== RTE 页面: 专用渲染 (Cyan标签 + 白色数据 + 虚线 + 光标) ==========
-    if (is_rte) {
-        char pg[16]; snprintf(pg, 16, "%d/%d", g_route.current_page + 1, g_route.total_pages());
-
-        // 标题: ACT FPLN (左, Cyan) + 页码 (右, Cyan)
-        r.draw_text(106, 90, "ACT FPLN", Color::FMC_CYAN, false);
+    // ========== RTE / NAV RAD 页面: 专用渲染 (Cyan标签 + 白色数据 + 虚线 + 光标) ==========
+    if (is_rte || is_nav) {
+        // 标题: 页名 (左, Cyan) + 页码 (右, Cyan)
+        const char* title = is_rte ? "ACT FPLN" : "NAV RAD";
+        char pg[16];
+        if (is_rte) snprintf(pg, 16, "%d/%d", g_route.current_page + 1, g_route.total_pages());
+        else        strcpy(pg, "1/1");
+        r.draw_text(106, 90, title, Color::FMC_CYAN, false);
         r.draw_text_right(526, 90, pg, Color::FMC_CYAN, false);
 
         int ly[6] = {140, 188, 236, 284, 332, 380};
@@ -327,12 +352,10 @@ void fmc_draw_screen(FMCRenderer& r) {
             if (!has_data) continue;
 
             int ly_top = ly[i] - 10, ly_val = ly[i] + 10;
-            // 左列: Cyan标签(上) + 白色数值(下)
             if (g_screen.line_L[i][0])
                 r.draw_text(106, ly_top, g_screen.line_L[i], Color::FMC_CYAN, true);
             if (g_screen.line_L_val[i][0])
                 r.draw_text(106, ly_val, g_screen.line_L_val[i], Color::FMC_WHITE, false);
-            // 右列: Cyan标签(上) + 白色数值(下)
             if (g_screen.line_R[i][0])
                 r.draw_text_right(526, ly_top, g_screen.line_R[i], Color::FMC_CYAN, true);
             if (g_screen.line_R_val[i][0])
@@ -345,29 +368,28 @@ void fmc_draw_screen(FMCRenderer& r) {
             lineRGBA(r.sdl_rend, r.to_sx(dx), r.to_sy(dash_y), r.to_sx(dx+6), r.to_sy(dash_y),
                      0, 220, 220, 180);
 
-        // 底部菜单 (与虚线下方)
-        if (g_route.current_page == 0) {
-            // Page 1: <ROUTE MENU / VNAV>
-            r.draw_text(106, 398, "<ROUTE MENU", Color::FMC_CYAN, false);
-            r.draw_text_right(526, 398, "VNAV>", Color::FMC_CYAN, false);
-        } else {
-            // Page 2+: <PREV PAGE / NEXT PAGE>
-            if (g_route.can_prev())
-                r.draw_text(106, 398, "<PREV PAGE", Color::FMC_WHITE, false);
-            r.draw_text_center(315, 398, pg, Color::FMC_WHITE, false);
-            if (g_route.can_next())
-                r.draw_text_right(526, 398, "NEXT PAGE>", Color::FMC_WHITE, false);
+        if (is_rte) {
+            // RTE 底部菜单
+            if (g_route.current_page == 0) {
+                r.draw_text(106, 398, "<ROUTE MENU", Color::FMC_CYAN, false);
+                r.draw_text_right(526, 398, "VNAV>", Color::FMC_CYAN, false);
+            } else {
+                if (g_route.can_prev())
+                    r.draw_text(106, 398, "<PREV PAGE", Color::FMC_WHITE, false);
+                r.draw_text_center(315, 398, pg, Color::FMC_WHITE, false);
+                if (g_route.can_next())
+                    r.draw_text_right(526, 398, "NEXT PAGE>", Color::FMC_WHITE, false);
+            }
         }
+        // NAV RAD: 无底部菜单, 仅光标
 
         // 闪烁光标 [ ]
         r.draw_text(106, 408, "[", Color::FMC_CYAN, false);
         r.draw_text_right(526, 408, "]", Color::FMC_CYAN, false);
 
-        // 草稿栏内容
         if (g_screen.scratchpad[0])
             r.draw_text(122, 408, g_screen.scratchpad, Color::FMC_WHITE, false);
 
-        // EXEC 灯
         if (g_screen.exec_light)
             r.draw_text_right(480, 408, "EXEC", Color::FMC_WHITE, false);
 
